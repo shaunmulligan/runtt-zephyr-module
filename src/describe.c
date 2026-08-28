@@ -20,6 +20,18 @@
 #include <balena_mcu/health.h>
 #endif
 
+/*
+ * Zephyr generates app_version.h only when the application has a VERSION file,
+ * so the include has to be conditional: a customer without one must still build.
+ * Without this the version silently reported as "unknown" even for apps that do
+ * declare one, because the fallback below was the only definition in scope.
+ */
+#if defined(__has_include)
+#if __has_include(<app_version.h>)
+#include <app_version.h>
+#endif
+#endif
+
 #define BALENA_MCU_GROUP_ID  CONFIG_BALENA_MCU_SMP_GROUP_ID
 #define BALENA_MCU_CMD_DESCRIBE 0
 
