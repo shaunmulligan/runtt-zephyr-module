@@ -116,7 +116,7 @@ config BALENA_MCU_SMP_GROUP_ID
 
 config BALENA_MCU_CONTRACT_VERSION
 	string "Contract version reported by describe"
-	default "1.1.0"
+	default "1.2.0"
 	depends on BALENA_MCU_SMP_DESCRIBE
 
 config BALENA_MCU_SIM_SLOT_SHIM
@@ -143,6 +143,18 @@ config BALENA_MCU_SIM_SLOT_SHIM
 	  is a host ELF, not the contents of slot 0. This makes it consistently
 	  fictional rather than unbuildable. Never enable it on real hardware --
 	  the dependency on ARCH_POSIX is deliberate.
+
+config BALENA_MCU_IDLE
+	bool "This image is the provisioning placeholder"
+	default n
+	help
+	  Set by balena-mcu-idle, the no-op application that ships in slot 0 at
+	  provisioning time. Reported over describe so the host can tell a board
+	  that is awaiting its first firmware from one running something it does
+	  not recognise -- those look identical otherwise, and warrant completely
+	  different reactions.
+
+	  Customer firmware should never set this.
 
 config BALENA_MCU_HEALTH
 	bool "Application liveness watchdog"

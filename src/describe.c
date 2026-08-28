@@ -58,7 +58,12 @@ static int balena_mcu_describe(struct smp_streamer *ctxt)
 	      * MGMT_ERR_ENOTSUP, which explains nothing.
 	      */
 	     zcbor_tstr_put_lit(zse, "img") &&
-	     zcbor_bool_put(zse, IS_ENABLED(CONFIG_BALENA_MCU_IMG_MGMT));
+	     zcbor_bool_put(zse, IS_ENABLED(CONFIG_BALENA_MCU_IMG_MGMT)) &&
+	     /* True only for the provisioning placeholder. Lets the host say
+	      * "this board has never received firmware" instead of guessing.
+	      */
+	     zcbor_tstr_put_lit(zse, "idle") &&
+	     zcbor_bool_put(zse, IS_ENABLED(CONFIG_BALENA_MCU_IDLE));
 
 #ifdef CONFIG_BALENA_MCU_HEALTH
 	/* Only advertised when the application opted in, so the host can tell
