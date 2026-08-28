@@ -51,7 +51,14 @@ static int balena_mcu_describe(struct smp_streamer *ctxt)
 	     zcbor_tstr_put_lit(zse, "app_version") &&
 	     zcbor_tstr_put_lit(zse, APP_VERSION_STRING) &&
 	     zcbor_tstr_put_lit(zse, "channels") &&
-	     zcbor_uint32_put(zse, CONFIG_BALENA_MCU_CHANNELS);
+	     zcbor_uint32_put(zse, CONFIG_BALENA_MCU_CHANNELS) &&
+	     /* Whether this device can receive an update at all. A board with no
+	      * secondary slot is a legitimate bring-up configuration, but a host
+	      * that only finds out when the upload fails reports a raw
+	      * MGMT_ERR_ENOTSUP, which explains nothing.
+	      */
+	     zcbor_tstr_put_lit(zse, "img") &&
+	     zcbor_bool_put(zse, IS_ENABLED(CONFIG_BALENA_MCU_IMG_MGMT));
 
 #ifdef CONFIG_BALENA_MCU_HEALTH
 	/* Only advertised when the application opted in, so the host can tell

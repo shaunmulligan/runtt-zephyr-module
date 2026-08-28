@@ -21,6 +21,59 @@ config BALENA_MCU_CHANNELS
 	  bring-up over a debug probe's UART bridge, where log output shares the
 	  management link using the console framing.
 
+config BALENA_MCU_USB
+	bool "Set up the USB device for the contract channels"
+	default y if DT_HAS_ZEPHYR_CDC_ACM_UART_ENABLED
+	depends on USB_DEVICE_STACK_NEXT
+	select USBD_CDC_ACM_CLASS
+	help
+	  Registers every CDC-ACM instance the devicetree declares.
+
+	  Zephyr's own CDC_ACM_SERIAL_INITIALIZE_AT_BOOT cannot be used for a
+	  two-channel device: its source says plainly that it "only registers the
+	  first CDC-ACM instance", so a board declaring management and log
+	  channels enumerates with just one and the log channel never appears.
+	  Observed on an RP2040 before this existed.
+
+	  Interface string descriptors are unaffected either way -- those come
+	  from each node's devicetree `label` and are handled by the CDC-ACM
+	  driver.
+
+if BALENA_MCU_USB
+
+config BALENA_MCU_USB_VID
+	hex "USB vendor ID"
+	default 0x2fe3
+	help
+	  Defaults to Zephyr's VID. Customers are expected to ship their own,
+	  which is exactly why the contract identifies channels by interface
+	  string descriptor rather than by VID/PID.
+
+config BALENA_MCU_USB_PID
+	hex "USB product ID"
+	default 0x0004
+
+config BALENA_MCU_USB_MANUFACTURER
+	string "USB manufacturer string"
+	default "balena"
+
+config BALENA_MCU_USB_PRODUCT
+	string "USB product string"
+	default "balena MCU device"
+
+config BALENA_MCU_USB_INIT_PRIORITY
+	int "USB init priority"
+	default 97
+	help
+	  Must run after the CDC-ACM instances are initialised and before the
+	  application's main().
+
+endif # BALENA_MCU_USB
+
+module = BALENA_MCU
+module-str = balena_mcu
+source "subsys/logging/Kconfig.template.log_config"
+
 config BALENA_MCU_IMG_MGMT
 	bool "Image management (the update half of the contract)"
 	default y if $(dt_nodelabel_exists,slot1_partition)
@@ -63,7 +116,7 @@ config BALENA_MCU_SMP_GROUP_ID
 
 config BALENA_MCU_CONTRACT_VERSION
 	string "Contract version reported by describe"
-	default "1.0.0"
+	default "1.1.0"
 	depends on BALENA_MCU_SMP_DESCRIBE
 
 config BALENA_MCU_SIM_SLOT_SHIM
