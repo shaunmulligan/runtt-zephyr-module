@@ -1,0 +1,79 @@
+# The developer-facing surface is deliberately close to zero: add the module to
+# west.yml, append `-S balena-mcu` to the build, and wrap it in the two-stage
+# Dockerfile. No source changes.
+
+menuconfig BALENA_MCU
+	bool "balena MCU runtime support"
+	help
+	  Device-side support for the io.balena.mcu runtime: an SMP management
+	  channel, a separate log channel, and a describe command that lets the
+	  host identify the firmware contract.
+
+if BALENA_MCU
+
+config BALENA_MCU_CHANNELS
+	int "Number of contract channels"
+	default 2
+	range 1 2
+	help
+	  2 is the normal case: one SMP management channel and one application
+	  log channel. 1 is for single-serial targets (ESP32-C3 class) and for
+	  bring-up over a debug probe's UART bridge, where log output shares the
+	  management link using the console framing.
+
+config BALENA_MCU_SMP_DESCRIBE
+	bool "Custom SMP describe command"
+	default y
+	depends on MCUMGR
+	help
+	  Answers a host query with the contract version, board identity,
+	  application version and channel count. This is what turns version skew
+	  into a clear error instead of a timeout.
+
+config BALENA_MCU_SMP_GROUP_ID
+	int "SMP group id for the describe command"
+	default 64
+	range 64 65535
+	depends on BALENA_MCU_SMP_DESCRIBE
+	help
+	  64 is MGMT_GROUP_ID_PERUSER, the first id reserved for applications.
+
+config BALENA_MCU_CONTRACT_VERSION
+	string "Contract version reported by describe"
+	default "1.0.0"
+	depends on BALENA_MCU_SMP_DESCRIBE
+
+config BALENA_MCU_SIM_SLOT_SHIM
+	bool "Report the DT code partition as the running slot (simulated targets)"
+	depends on ARCH_POSIX
+	select HAS_FLASH_LOAD_OFFSET
+	select USE_DT_CODE_PARTITION
+	help
+	  Makes img_mgmt buildable on native_sim.
+
+	  img_mgmt refuses to compile without CONFIG_FLASH_LOAD_OFFSET, which it
+	  needs to work out which slot the running image occupies. That symbol is
+	  gated on HAS_FLASH_LOAD_OFFSET (selected only by real architectures) or
+	  on the chosen code partition using the zephyr,mapped-partition
+	  compatible. As of Zephyr v4.4.2 native_sim still uses fixed-partitions,
+	  so neither holds and the build fails outright.
+
+	  Enabling this selects both, so FLASH_LOAD_OFFSET is derived from
+	  /chosen/zephyr,code-partition -- slot 0. On POSIX the value does not
+	  affect the link (there is no XIP flash to link into), so its only effect
+	  is to let img_mgmt name the running slot.
+
+	  The reported slot is fictional either way: on native_sim the running code
+	  is a host ELF, not the contents of slot 0. This makes it consistently
+	  fictional rather than unbuildable. Never enable it on real hardware --
+	  the dependency on ARCH_POSIX is deliberate.
+
+config BALENA_MCU_HEALTH
+	bool "Application liveness watchdog"
+	default n
+	help
+	  SMP echo proves the kernel is alive, not that the application thread
+	  is. Enabling this extends the host's confirm gate from "kernel alive"
+	  to "application alive", via balena_mcu_health_feed().
+
+endif # BALENA_MCU

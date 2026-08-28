@@ -1,0 +1,7 @@
+name: balena-mcu
+build:
+  cmake: zephyr
+  kconfig: zephyr/Kconfig
+  settings:
+    # Lets `west build -S balena-mcu` find snippets/balena-mcu/.
+    snippet_root: .

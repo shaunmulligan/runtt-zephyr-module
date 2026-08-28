@@ -1,0 +1,7 @@
+# The module is opt-in: a workspace can carry it without every app paying for it.
+if(CONFIG_BALENA_MCU)
+  zephyr_library_named(balena_mcu)
+  zephyr_include_directories(${ZEPHYR_CURRENT_MODULE_DIR}/include)
+  zephyr_library_sources_ifdef(CONFIG_BALENA_MCU_HEALTH       ../src/health.c)
+  zephyr_library_sources_ifdef(CONFIG_BALENA_MCU_SMP_DESCRIBE ../src/describe.c)
+endif()

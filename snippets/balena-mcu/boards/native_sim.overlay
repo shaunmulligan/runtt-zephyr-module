@@ -1,0 +1,28 @@
+/*
+ * Two contract channels on native_sim, each on its own host pty.
+ *
+ * Note the label/node-name distinction: the labels are uart0/uart1 but the
+ * devicetree NODE names are `uart` and `uart_1`, and it is the node name that
+ * appears in the binary's startup announcement and in its per-instance
+ * command-line options. A harness must key off the node name.
+ */
+
+/* Channel 2: application log output. */
+&uart1 {
+	status = "okay";
+};
+
+/ {
+	chosen {
+		/* Channel 1: SMP management. Already the default on native_sim,
+		 * but stated explicitly because it is contractual.
+		 */
+		zephyr,uart-mcumgr = &uart0;
+
+		/* Move the console -- and therefore the log backend -- to
+		 * channel 2, leaving channel 1 clean for SMP framing.
+		 */
+		zephyr,console = &uart1;
+		zephyr,shell-uart = &uart1;
+	};
+};
