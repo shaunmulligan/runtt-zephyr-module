@@ -21,6 +21,29 @@ config BALENA_MCU_CHANNELS
 	  bring-up over a debug probe's UART bridge, where log output shares the
 	  management link using the console framing.
 
+config BALENA_MCU_IMG_MGMT
+	bool "Image management (the update half of the contract)"
+	default y if $(dt_nodelabel_exists,slot1_partition)
+	select MCUMGR_GRP_IMG
+	select IMG_MANAGER
+	select STREAM_FLASH
+	select FLASH
+	select FLASH_MAP
+	help
+	  Enables the SMP image group, which is how firmware is actually
+	  delivered. Requires a secondary slot to stage into, so the default
+	  follows whether the board's devicetree defines slot1_partition.
+
+	  Boards without it -- a plain rpi_pico, say, whose stock devicetree has
+	  a single code partition and no slots -- get transport and identity
+	  only. That is a legitimate BRING-UP configuration: it boots standalone
+	  with no bootloader, which is exactly what you want while proving USB
+	  enumeration, the interface descriptors and the udev rules. It cannot
+	  receive an update, and describe advertises as much.
+
+	  Do not ship it. For a deliverable image use a board target with slots
+	  (rpi_pico/rp2040/mcuboot) built under sysbuild with MCUboot.
+
 config BALENA_MCU_SMP_DESCRIBE
 	bool "Custom SMP describe command"
 	default y

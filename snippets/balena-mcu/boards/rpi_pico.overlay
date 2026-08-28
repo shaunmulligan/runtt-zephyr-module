@@ -1,0 +1,36 @@
+/*
+ * Dual CDC-ACM composite on RP2040: the two contract channels as USB endpoints
+ * rather than the ptys native_sim gives us. Same shape, different transport.
+ *
+ * The `label` on each instance becomes the USB **interface string descriptor**,
+ * which is the part of the contract the firmware owns and the part our udev
+ * rules match on. We deliberately do not key off VID/PID: a customer may ship
+ * their own VID, and interface numbering is not contractual either (ID_PATH is
+ * interface-suffixed, so the two channels of one composite device land on
+ * different ID_PATHs).
+ */
+
+&zephyr_udc0 {
+	cdc_acm_mgmt: cdc_acm_mgmt {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "balena-mcu-mgmt";
+	};
+
+	cdc_acm_log: cdc_acm_log {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "balena-mcu-log";
+	};
+};
+
+/ {
+	chosen {
+		/* Channel 1: SMP management. */
+		zephyr,uart-mcumgr = &cdc_acm_mgmt;
+
+		/* Channel 2: application log output, which the runtime pipes to
+		 * container stdio.
+		 */
+		zephyr,console = &cdc_acm_log;
+		zephyr,shell-uart = &cdc_acm_log;
+	};
+};

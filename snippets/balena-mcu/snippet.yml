@@ -17,3 +17,9 @@ boards:
     append:
       EXTRA_DTC_OVERLAY_FILE: boards/native_sim.overlay
       EXTRA_CONF_FILE: boards/native_sim.conf
+  # On hardware the two channels become a dual CDC-ACM composite. A regex so the
+  # /rp2040 and /rp2040/mcuboot variants are both covered.
+  /rpi_pico.*/:
+    append:
+      EXTRA_DTC_OVERLAY_FILE: boards/rpi_pico.overlay
+      EXTRA_CONF_FILE: boards/rpi_pico.conf
