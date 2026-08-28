@@ -3,5 +3,5 @@ build:
   cmake: zephyr
   kconfig: zephyr/Kconfig
   settings:
-    # Lets `west build -S balena-mcu` find snippets/balena-mcu/.
+    # Lets west find snippets/balena-mcu/ for -Dapp_SNIPPET=/-S.
     snippet_root: .

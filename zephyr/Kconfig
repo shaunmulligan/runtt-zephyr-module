@@ -1,5 +1,5 @@
 # The developer-facing surface is deliberately close to zero: add the module to
-# west.yml, append `-S balena-mcu` to the build, and wrap it in the two-stage
+# west.yml, add `-Dapp_SNIPPET=balena-mcu` to the build, and wrap it in the two-stage
 # Dockerfile. No source changes.
 
 menuconfig BALENA_MCU

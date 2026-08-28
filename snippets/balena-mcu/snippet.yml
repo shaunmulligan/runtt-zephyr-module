@@ -1,6 +1,7 @@
 # The honesty test for this snippet: a competent Zephyr developer with existing
 # firmware gets onto the platform by adding the module to west.yml, appending
-# `-S balena-mcu` to their build, and wrapping it in the two-stage Dockerfile.
+# `-Dapp_SNIPPET=balena-mcu` to their build, and wrapping it in the two-stage
+# Dockerfile (a top-level `-S` would apply the snippet to MCUboot too).
 # Under an hour, no source changes.
 name: balena-mcu
 append:
