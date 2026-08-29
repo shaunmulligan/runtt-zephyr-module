@@ -165,3 +165,26 @@ config BALENA_MCU_HEALTH
 	  to "application alive", via balena_mcu_health_feed().
 
 endif # BALENA_MCU
+
+# The system workqueue carries more than an application would expect once this
+# module is enabled, and Zephyr's 1024-byte default is not enough for it.
+#
+# Both CDC-ACM instances submit their rx/tx/irq work to the system workqueue
+# (CONFIG_USBD_CDC_ACM_WORKQUEUE is off by default), and MCUmgr's os-reset
+# handler schedules the reboot there too -- k_work_schedule(&os_mgmt_reset_work,
+# ...) in os_mgmt.c. Overflow that stack and the queue's thread dies, taking SMP,
+# log output and the pending reboot with it. USB *interrupts* keep running on
+# their own stack, so the device still answers control transfers and looks
+# healthy to lsusb while being entirely unmanageable -- and, because the reboot
+# never fires, unrecoverable without physically replugging the board.
+#
+# Observed exactly that on an RP2040: an `os reset` alone, with no upload,
+# bricked a board running balena-mcu-idle until it was replugged. The template
+# application happened to set 2560 in its own prj.conf and so never hit it,
+# which is precisely why this belongs to the module rather than to any one app.
+#
+# configdefault rather than a value in the snippet's .conf: this raises the
+# default without preventing an application from choosing a larger one, whereas
+# a conf fragment would silently override a deliberately bigger value.
+configdefault SYSTEM_WORKQUEUE_STACK_SIZE
+	default 2560 if BALENA_MCU
