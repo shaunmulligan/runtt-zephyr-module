@@ -14,11 +14,43 @@
 	cdc_acm_mgmt: cdc_acm_mgmt {
 		compatible = "zephyr,cdc-acm-uart";
 		label = "balena-mcu-mgmt";
+		/*
+		 * Not optional for SMP. Without it CDC-ACM silently DROPS
+		 * received data when the class has no buffer queued, and
+		 * zephyr#107633's conclusion is blunt: "any protocol that
+		 * relies on data not being dropped cannot work". Zephyr's own
+		 * smp_svr USB overlay carries this property for exactly that
+		 * reason.
+		 *
+		 * On RP2040 the consequence is worse than a dropped packet. A
+		 * bulk OUT completing with no buffer queued takes
+		 * udc_rpi_pico.c's `buf == NULL` path, which clears the
+		 * BUFF_STATUS bit, logs, and returns WITHOUT re-arming -- so
+		 * the endpoint is dead for good. Observed on hardware as
+		 * EP1 OUT = FULL, LENGTH=7, AVAILABLE=0, with the board
+		 * enumerated and answering control transfers while completely
+		 * unmanageable.
+		 */
+		hw-flow-control;
 	};
 
 	cdc_acm_log: cdc_acm_log {
 		compatible = "zephyr,cdc-acm-uart";
 		label = "balena-mcu-log";
+		/*
+		 * Deliberately NO hw-flow-control here, unlike the management
+		 * channel. The property means "block instead of drop": with it
+		 * set, poll_out blocks once the TX buffer is full
+		 * (usbd_cdc_acm.c:104-107). That is correct for SMP, which
+		 * cannot tolerate loss -- and fatal for a console, which no one
+		 * may be reading.
+		 *
+		 * Setting it here bricked boot: the log backend blocks on the
+		 * first message before USB has enumerated, so the device never
+		 * finishes coming up and never appears on the host at all.
+		 * Losing log output under backpressure is the correct
+		 * trade for this channel.
+		 */
 	};
 };
 
