@@ -113,11 +113,20 @@ stops a Zephyr bump silently changing the on-device contract.
 ### 4. The build flag
 
 ```bash
-west build -b <board> --sysbuild app/ -- -Dapp_SNIPPET=balena-mcu
+west build -b <board> --sysbuild app/ -- \
+      -DZEPHYR_EXTRA_MODULES=<path to balena-mcu> \
+      -Dapp_SNIPPET=balena-mcu
 ```
 
 The snippet appends the contract's Kconfig and the board's devicetree overlay.
 Everything in `docs/WIRE_CONTRACT.md` follows from it.
+
+> **`-DZEPHYR_EXTRA_MODULES` is not optional.** West auto-discovers a
+> `module.yml` only at a project's root, and `balena-mcu` is nested inside its
+> manifest repo rather than being one. Without the flag the module and its
+> snippet are simply not there, and the failure is a confusing "unknown snippet"
+> rather than anything naming the module. Inside the builder image the path is
+> `/ws/balena-mcu`, also exported as `$BALENA_MCU_MODULE`.
 
 > **Use `-Dapp_SNIPPET=`, not `-S`/`--snippet`, whenever you build under
 > sysbuild.** A top-level snippet applies to **every** image sysbuild produces,
@@ -131,23 +140,55 @@ Everything in `docs/WIRE_CONTRACT.md` follows from it.
 
 ### 5. The Dockerfile
 
+The build environment — Zephyr, MCUboot and the `balena-mcu` module — comes from
+a **builder image**, built once:
+
+```bash
+docker build -f firmware/builder/Dockerfile -t balena-mcu-builder:v4.4.2 firmware/
+```
+
+Your application directory then needs nothing but its own source and this:
+
 ```dockerfile
-FROM ghcr.io/zephyrproject-rtos/ci:v0.28.4 AS builder
+ARG BUILDER=balena-mcu-builder:v4.4.2
+FROM ${BUILDER} AS builder
 ARG BOARD=rpi_pico/rp2040/mcuboot
-WORKDIR /ws
-COPY west.yml /ws/firmware/west.yml
-RUN west init -l firmware && west update --narrow -o=--depth=1
-COPY . /ws/firmware/
-RUN west build -b "${BOARD}" --sysbuild firmware/app -- -Dapp_SNIPPET=balena-mcu
+
+COPY . /ws/app
+RUN west build -b "${BOARD}" --sysbuild /ws/app -d /ws/build -- \
+      -DZEPHYR_EXTRA_MODULES=/ws/balena-mcu \
+      -Dapp_SNIPPET=balena-mcu
 
 FROM scratch
 COPY --from=builder /ws/build/app/zephyr/zephyr.signed.bin /app.signed.bin
 ENTRYPOINT ["app.signed.bin"]
 ```
 
+```bash
+cd my-app && docker build -t my-app:v1 .
+```
+
+`firmware/examples/app1` and `app2` are complete worked examples.
+
+> **Why a builder image rather than fetching Zephyr in your own Dockerfile.**
+> The west manifest and the module are siblings of the application, so a
+> self-contained Dockerfile would have to `COPY` them from outside its own
+> directory — which forces the build context up to the whole repo and makes
+> `cd my-app && docker build .` fail with `"/west.yml": not found`. Putting the
+> environment in the builder image is what keeps an application directory
+> genuinely self-contained.
+
+> **`COPY . /ws/app` names the sysbuild image.** That destination is why
+> `app_SNIPPET` and `/ws/build/app/` both say `app`, whatever your host
+> directory is called. Rename the destination and you must rename both.
+
 The second stage is the whole delivery format: `FROM scratch`, one signed
 image, an entrypoint naming it. **The runtime resolves `process.args[0]` inside
 the rootfs** — that is the entire contract between your image and the runtime.
+
+**There is no `imgtool` step.** Sysbuild signs the image itself, and does it
+correctly — which is how this path avoids the `--pad-header` trap in §2
+entirely.
 
 Deltas are computed on full image content rather than per layer, so a
 single-layer blob is structurally the best case for update size.
