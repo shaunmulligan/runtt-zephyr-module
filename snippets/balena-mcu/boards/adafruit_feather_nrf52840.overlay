@@ -1,0 +1,70 @@
+/*
+ * Dual CDC-ACM composite on nRF52840: the two contract channels as USB
+ * endpoints, the same shape the Pico overlay produces and native_sim fakes
+ * with ptys.
+ *
+ * The `label` on each instance becomes the USB **interface string descriptor**,
+ * which is the part of the contract the firmware owns and the part our udev
+ * rules match on. We deliberately do not key off VID/PID -- a customer may ship
+ * their own VID, and interface numbering is not contractual either.
+ *
+ * Note this overlay must override `chosen`: the Feather's own board DTS points
+ * zephyr,console, zephyr,shell-uart and zephyr,uart-mcumgr at &uart0, which is
+ * the probe's UART bridge rather than USB.
+ */
+
+&zephyr_udc0 {
+	cdc_acm_mgmt: cdc_acm_mgmt {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "balena-mcu-mgmt";
+		/*
+		 * Not optional for SMP. Without it CDC-ACM silently DROPS
+		 * received data when the class has no buffer queued, and
+		 * zephyr#107633's conclusion is blunt: "any protocol that
+		 * relies on data not being dropped cannot work". Zephyr's own
+		 * smp_svr USB overlay carries this property for the same
+		 * reason.
+		 *
+		 * On RP2040 the consequence is worse than a dropped packet --
+		 * the endpoint is left unarmed and dies for good (see
+		 * rpi_pico.overlay). Whether udc_nrf.c degrades the same way is
+		 * UNVERIFIED; the property is correct here regardless, because
+		 * the generic drop is already fatal to SMP.
+		 */
+		hw-flow-control;
+	};
+
+	cdc_acm_log: cdc_acm_log {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "balena-mcu-log";
+		/*
+		 * Deliberately NO hw-flow-control here, unlike the management
+		 * channel. The property means "block instead of drop": with it
+		 * set, poll_out blocks once the TX buffer is full
+		 * (usbd_cdc_acm.c:104-107). That is correct for SMP, which
+		 * cannot tolerate loss -- and fatal for a console, which no one
+		 * may be reading.
+		 *
+		 * On the Pico, setting it here hung boot outright: the log
+		 * backend blocks on its first message, which happens before USB
+		 * has enumerated, so nothing is draining the buffer and the
+		 * device never finishes coming up or appears on the host at
+		 * all. Recoverable only by reflashing -- and on this board that
+		 * means SWD, because there is no BOOTSEL. Losing log output
+		 * under backpressure is the correct trade for this channel.
+		 */
+	};
+};
+
+/ {
+	chosen {
+		/* Channel 1: SMP management. */
+		zephyr,uart-mcumgr = &cdc_acm_mgmt;
+
+		/* Channel 2: application log output, which the runtime pipes to
+		 * container stdio.
+		 */
+		zephyr,console = &cdc_acm_log;
+		zephyr,shell-uart = &cdc_acm_log;
+	};
+};

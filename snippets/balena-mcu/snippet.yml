@@ -24,3 +24,11 @@ boards:
     append:
       EXTRA_DTC_OVERLAY_FILE: boards/rpi_pico.overlay
       EXTRA_CONF_FILE: boards/rpi_pico.conf
+  # Same composite on nRF52840. The regex covers the /nrf52840 and /nrf52840/uf2
+  # targets, but note only the plain one is usable: the uf2 variant's partition
+  # layout (nordic/nrf52840_partition_uf2_sdv6.dtsi) keeps Adafruit's bootloader
+  # and has no slot0/slot1 at all, so there is nothing for MCUboot to swap.
+  /adafruit_feather_nrf52840.*/:
+    append:
+      EXTRA_DTC_OVERLAY_FILE: boards/adafruit_feather_nrf52840.overlay
+      EXTRA_CONF_FILE: boards/adafruit_feather_nrf52840.conf
