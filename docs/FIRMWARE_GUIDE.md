@@ -69,6 +69,14 @@ how you tell which release is on a board.
 > is a *different field*. Setting it does not change `APP_VERSION_STRING`, and
 > the two disagreeing is confusing rather than harmful. Bump the `VERSION` file.
 
+> **A second imgtool trap, and this one bricks boards.** If you sign an image by
+> hand, do **not** pass `--pad-header`. An application built for MCUboot sets
+> `CONFIG_ROM_START_OFFSET=0x200` and already reserves the header space;
+> `--pad-header` prepends another, so the header says `hdr_size=0x200` while the
+> image really starts at 0x400. `imgtool verify` still passes. MCUboot jumps to
+> `image + 0x200`, hits the padding, and the core locks up unrecoverably.
+> Sanity-check that the word at `hdr_size` is a RAM address, not zero.
+
 ### 3. `sysbuild.conf`
 
 ```kconfig
