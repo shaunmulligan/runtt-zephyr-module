@@ -57,13 +57,16 @@ static const struct isotp_msg_id tx_addr = {
 	.dl = 8,
 };
 
-/* Block size 8, STmin 0: let the peer send eight frames between flow-control
- * acknowledgements and pause for nothing in between. The host is a Linux box
- * that can always keep up; the device is the slow side, and its limit is the
- * SMP buffer rather than the wire.
+/* Block size 0, STmin 0: no flow-control block limit and no inter-frame gap.
+ *
+ * bs = 0 is not just a tuning choice. isotp_recv_net() delivers the whole
+ * message in one net_buf only when bs is zero; with a block size it returns
+ * after each block with the remaining length, and the caller has to reassemble
+ * across calls. SMP packets are bounded by MCUMGR_TRANSPORT_NETBUF_SIZE, so the
+ * receive pool can simply be sized to hold one and the complexity avoided.
  */
 static const struct isotp_fc_opts fc_opts = {
-	.bs = 8,
+	.bs = 0,
 	.stmin = 0,
 };
 
@@ -139,8 +142,14 @@ static void smp_can_rx_thread(void *a, void *b, void *c)
 		/* ISO-TP hands back whole messages, so there is no reassembly to
 		 * do here and no partial-packet state to get wrong.
 		 */
+		/* NOT `rc != ISOTP_N_OK`. isotp_recv_net returns the REMAINING
+		 * length, which is zero only because bs is zero above; a positive
+		 * value is success with more to come, and only negative values are
+		 * errors. Getting this wrong rejects perfectly good packets and
+		 * looks exactly like a wiring fault.
+		 */
 		rc = isotp_recv_net(&recv_ctx, &isotp_buf, K_FOREVER);
-		if (rc != ISOTP_N_OK) {
+		if (rc < 0) {
 			LOG_ERR("ISO-TP receive failed (%d)", rc);
 			continue;
 		}
