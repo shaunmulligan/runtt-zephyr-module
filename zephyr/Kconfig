@@ -156,6 +156,72 @@ config BALENA_MCU_IDLE
 
 	  Customer firmware should never set this.
 
+config BALENA_MCU_SMP_CAN
+	bool "SMP over ISO-TP on a CAN bus"
+	default n
+	depends on MCUMGR
+	depends on CAN && ISOTP
+	help
+	  A second management transport, for boards reached over CAN rather than
+	  USB. Zephyr ships MCUmgr transports for serial, shell, BLE, UDP and
+	  LoRaWAN but none for CAN, so this supplies one.
+
+	  It rides ISO-TP (ISO 15765-2) rather than segmenting SMP packets by
+	  hand: Zephyr implements it in subsys/canbus/isotp and Linux in the
+	  mainline can-isotp module, so both ends get segmentation, flow control
+	  and reassembly for free and exchange whole SMP packets.
+
+	  Needs /chosen/zephyr,canbus to name an enabled CAN device, and
+	  CONFIG_CAN and CONFIG_ISOTP enabled alongside it.
+
+	  Deliberately `depends on` rather than `select`: ISOTP selects NET_BUF,
+	  MCUMGR already depends on NET_BUF, and selecting across that makes
+	  Kconfig report a recursive dependency and refuse to configure at all.
+
+if BALENA_MCU_SMP_CAN
+
+config BALENA_MCU_CAN_NODE_ID
+	hex "CAN id this device receives SMP requests on"
+	default 0x42
+	range 0x0 0x7ff
+	help
+	  The device receives here and replies on this id plus one. Two ids from
+	  one setting, deliberately: the host's placement label
+	  (can:<iface>/<node-id>) then carries a single number, and the two halves
+	  cannot drift apart.
+
+	  Standard 11-bit identifiers only. Give each board on a bus its own id.
+
+config BALENA_MCU_CAN_RX_STACK_SIZE
+	int "Stack for the CAN receive thread"
+	default 2048
+	help
+	  The thread copies a received ISO-TP message into an SMP packet and hands
+	  it to the MCUmgr core, which processes it on this stack. 2048 rather
+	  than something smaller because a USB driver thread at Zephyr's 512-byte
+	  default overflowed on the nRF52840 and presented as an MPU fault jumping
+	  into a data symbol -- see docs/PROVISIONING.md.
+
+config BALENA_MCU_CAN_RX_THREAD_PRIORITY
+	int "Priority of the CAN receive thread"
+	default 5
+
+config BALENA_MCU_CAN_TX_TIMEOUT_MS
+	int "How long to wait for an ISO-TP send to complete (ms)"
+	default 2000
+	help
+	  A send needs flow-control frames back from the peer, so it stalls
+	  indefinitely if nothing is listening. On timeout the response is
+	  abandoned and the host retries, which is what its retry logic is for.
+
+config BALENA_MCU_CAN_INIT_PRIORITY
+	int "Init priority for the CAN SMP transport"
+	default 99
+	help
+	  After the CAN driver and ISO-TP are up.
+
+endif # BALENA_MCU_SMP_CAN
+
 config BALENA_MCU_HEALTH
 	bool "Application liveness watchdog"
 	default n
