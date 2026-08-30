@@ -183,14 +183,21 @@ if BALENA_MCU_SMP_CAN
 config BALENA_MCU_CAN_NODE_ID
 	hex "CAN id this device receives SMP requests on"
 	default 0x42
-	range 0x0 0x7ff
+	range 0x0 0x7fd
 	help
-	  The device receives here and replies on this id plus one. Two ids from
-	  one setting, deliberately: the host's placement label
-	  (can:<iface>/<node-id>) then carries a single number, and the two halves
+	  A node owns THREE consecutive ids from this one setting: it receives
+	  here, replies on this plus one, and sends its console on this plus two.
+	  Three ids from one number, deliberately -- the host's placement label
+	  (can:<iface>/<node-id>) then carries a single number and the parts
 	  cannot drift apart.
 
-	  Standard 11-bit identifiers only. Give each board on a bus its own id.
+	  The console id is reserved whether or not BALENA_MCU_CAN_LOG is set, so
+	  that turning logging on later cannot collide with a neighbour already on
+	  the bus.
+
+	  Standard 11-bit identifiers only, hence the 0x7fd ceiling: 0x7fe and
+	  0x7ff would leave no room for the other two. Give each board on a bus
+	  its own id, at least three apart.
 
 config BALENA_MCU_CAN_RX_STACK_SIZE
 	int "Stack for the CAN receive thread"
@@ -219,6 +226,80 @@ config BALENA_MCU_CAN_INIT_PRIORITY
 	default 99
 	help
 	  After the CAN driver and ISO-TP are up.
+
+config BALENA_MCU_CAN_LOG
+	bool "Send the console over CAN as raw frames"
+	default y
+	depends on LOG && !LOG_MODE_MINIMAL
+	help
+	  A CAN target has no second channel the way a USB target does, and the
+	  single-channel demux cannot stand in: it keys off the console
+	  transport's base64-and-CRC framing markers, which SMP over ISO-TP does
+	  not have. This gives the console its own path.
+
+	  Frames go out on BALENA_MCU_CAN_NODE_ID + 2 -- the third and last id a
+	  node owns. Being the highest of the three, it also has the lowest
+	  arbitration priority, so an upload in progress wins the bus against
+	  chatty logs.
+
+	  RAW FRAMES RATHER THAN ISO-TP, DELIBERATELY. ISO-TP waits for the
+	  receiver's flow-control frame, so logging over it with no host attached
+	  would block, and a blocking log backend deadlocks boot. These frames are
+	  fire-and-forget and are DROPPED when no mailbox is free. Lossy under
+	  backpressure is the intent: a mangled line is a far better failure than
+	  a board that will not start.
+
+if BALENA_MCU_CAN_LOG
+
+config BALENA_MCU_CAN_LOG_BUF_SIZE
+	int "Formatting buffer for the CAN log backend"
+	default 64
+	help
+	  Log lines are formatted here before being cut into 8-byte frames. This
+	  bounds the formatting, not the line: longer lines are emitted in
+	  several passes.
+
+config BALENA_MCU_CAN_LOG_QUEUE_DEPTH
+	int "Frames buffered between the logger and the bus"
+	default 32
+	help
+	  The lossy boundary. A log call puts a frame here without blocking; the
+	  sender thread drains it with a blocking send. Frames are dropped only
+	  when this is full, which means the bus genuinely cannot keep up.
+
+	  Do not set this to 0 hoping to send inline. can_send() with K_NO_WAIT
+	  fails with -EAGAIN whenever no mailbox is free, and a mailbox frees only
+	  once the frame is on the wire -- which discards nearly everything.
+
+config BALENA_MCU_CAN_LOG_TX_STACK_SIZE
+	int "Stack for the CAN log sender thread"
+	default 768
+	help
+	  It only pops a frame and calls can_send(), so this is small.
+
+config BALENA_MCU_CAN_LOG_TX_THREAD_PRIORITY
+	int "Priority of the CAN log sender thread"
+	default 10
+	help
+	  Below the SMP receive thread: management traffic should preempt logs,
+	  matching the arbitration priority the id ordering already gives.
+
+config BALENA_MCU_CAN_LOG_TX_TIMEOUT_MS
+	int "How long the sender waits for a mailbox (ms)"
+	default 100
+	help
+	  Bounded so a wedged controller cannot park the sender thread forever.
+	  Nothing upstream waits on this, so it can afford to be patient.
+
+config BALENA_MCU_CAN_LOG_INIT_PRIORITY
+	int "Init priority for the CAN log backend"
+	default 99
+	help
+	  Must be at or after BALENA_MCU_CAN_INIT_PRIORITY: that is what starts
+	  the CAN controller, and this only borrows it. Until this runs, frames
+	  are discarded rather than sent to an unstarted device.
+
+endif # BALENA_MCU_CAN_LOG
 
 endif # BALENA_MCU_SMP_CAN
 
