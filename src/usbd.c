@@ -23,6 +23,9 @@
 #include <zephyr/usb/usbd.h>
 
 #include <zephyr/logging/log.h>
+#ifdef CONFIG_BALENA_MCU_IDENTITY
+#include <balena_mcu/identity.h>
+#endif
 LOG_MODULE_REGISTER(balena_mcu_usbd, CONFIG_BALENA_MCU_LOG_LEVEL);
 
 /*
@@ -44,6 +47,33 @@ USBD_DESC_LANG_DEFINE(balena_mcu_lang);
 USBD_DESC_MANUFACTURER_DEFINE(balena_mcu_mfr, CONFIG_BALENA_MCU_USB_MANUFACTURER);
 USBD_DESC_PRODUCT_DEFINE(balena_mcu_product, CONFIG_BALENA_MCU_USB_PRODUCT);
 IF_ENABLED(CONFIG_HWINFO, (USBD_DESC_SERIAL_NUMBER_DEFINE(balena_mcu_sn)));
+
+#ifdef CONFIG_BALENA_MCU_IDENTITY
+/* The provisioned serial, published as the USB serial string descriptor.
+ *
+ * THIS IS WHAT MAKES `usb:<serial>` PLACEMENT POSSIBLE WITHOUT PROBING. A host
+ * resolving a board by serial must be able to read that serial WITHOUT talking
+ * to the device: the alternative is opening every candidate tty and asking it
+ * over SMP, which means sending frames to boards owned by other containers, and
+ * an SMP frame arriving mid-upload on somebody else's board is exactly the
+ * corruption ID_MM_DEVICE_IGNORE exists to prevent. In a string descriptor it is
+ * visible to udev and sysfs before anyone opens anything.
+ *
+ * Zephyr's USBD_DESC_STRING_DEFINE builds its buffer from a string literal, so
+ * it cannot carry a value read from flash at boot. The node is therefore
+ * declared by hand over a mutable buffer, with bLength filled in once the length
+ * is known.
+ */
+static uint8_t provisioned_sn_ascii[BALENA_MCU_IDENTITY_SERIAL_LEN + 1];
+static struct usbd_desc_node balena_mcu_provisioned_sn = {
+	.str = {
+		.utype = USBD_DUT_STRING_SERIAL_NUMBER,
+		.ascii7 = true,
+	},
+	.ptr = provisioned_sn_ascii,
+	.bDescriptorType = USB_DESC_STRING,
+};
+#endif
 
 USBD_DESC_CONFIG_DEFINE(balena_mcu_fs_desc, "balena MCU FS configuration");
 USBD_DESC_CONFIG_DEFINE(balena_mcu_hs_desc, "balena MCU HS configuration");
@@ -82,16 +112,47 @@ static int balena_mcu_usbd_init(void)
 		return err;
 	}
 
-	IF_ENABLED(CONFIG_HWINFO, ({
-		/* A per-device serial number derived from hardware ID. Not part
-		 * of the contract -- placement is by port path -- but it makes
-		 * two identical boards distinguishable in udev and lsusb.
+	/* The serial number descriptor, from the identity record when this board
+	 * has one and from the hardware id otherwise.
+	 *
+	 * An unprovisioned board still publishes SOMETHING unique, which matters:
+	 * two identical boards must stay distinguishable in udev and lsusb even
+	 * before anyone assigns them names. What changes with provisioning is that
+	 * the value becomes something a human chose and a compose file can name.
+	 */
+	bool sn_added = false;
+
+#ifdef CONFIG_BALENA_MCU_IDENTITY
+	const char *provisioned = balena_mcu_identity_serial();
+
+	if (provisioned != NULL) {
+		size_t len = strlen(provisioned);
+
+		memcpy(provisioned_sn_ascii, provisioned, len);
+		provisioned_sn_ascii[len] = '\0';
+		/* Two bytes of header plus two per character: the same arithmetic
+		 * USB_STRING_DESCRIPTOR_LENGTH does for a literal.
 		 */
-		err = usbd_add_descriptor(&balena_mcu_usbd, &balena_mcu_sn);
+		balena_mcu_provisioned_sn.bLength = (uint8_t)((len + 1) * 2);
+
+		err = usbd_add_descriptor(&balena_mcu_usbd, &balena_mcu_provisioned_sn);
 		if (err) {
-			LOG_WRN("failed to add serial number descriptor (%d)", err);
+			LOG_WRN("failed to add the provisioned serial descriptor (%d)", err);
+		} else {
+			LOG_INF("USB serial number is the provisioned \"%s\"", provisioned);
+			sn_added = true;
 		}
-	}))
+	}
+#endif
+
+	if (!sn_added) {
+		IF_ENABLED(CONFIG_HWINFO, ({
+			err = usbd_add_descriptor(&balena_mcu_usbd, &balena_mcu_sn);
+			if (err) {
+				LOG_WRN("failed to add serial number descriptor (%d)", err);
+			}
+		}))
+	}
 
 	if (usbd_caps_speed(&balena_mcu_usbd) == USBD_SPEED_HS) {
 		err = usbd_add_configuration(&balena_mcu_usbd, USBD_SPEED_HS,

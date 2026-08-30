@@ -20,10 +20,13 @@ LOG_MODULE_REGISTER(balena_mcu_identity, CONFIG_BALENA_MCU_LOG_LEVEL);
  * put a record, so the module compiles down to the built-in defaults rather than
  * failing the build -- identity is optional, and a board without it still works.
  */
-#define HAVE_STORAGE FIXED_PARTITION_EXISTS(storage_partition)
+#define HAVE_STORAGE PARTITION_EXISTS(storage_partition)
 
 #if HAVE_STORAGE
-#define STORAGE_ID FIXED_PARTITION_ID(storage_partition)
+/* PARTITION_ID, not FIXED_PARTITION_ID: the latter is deprecated at v4.4 and
+ * carries __DEPRECATED_MACRO, so it warns now and goes away later.
+ */
+#define STORAGE_ID PARTITION_ID(storage_partition)
 #endif
 
 /* Everything but the trailing CRC. */
