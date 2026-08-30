@@ -32,28 +32,39 @@
 
 #include <mgmt/mcumgr/transport/smp_internal.h>
 
+#include <balena_mcu/can_id.h>
+#ifdef CONFIG_BALENA_MCU_IDENTITY
+#include <balena_mcu/identity.h>
+#endif
+
 LOG_MODULE_REGISTER(balena_mcu_can, CONFIG_BALENA_MCU_LOG_LEVEL);
 
 #define CAN_NODE DT_CHOSEN(zephyr_canbus)
 BUILD_ASSERT(DT_NODE_HAS_STATUS(CAN_NODE, okay),
 	     "BALENA_MCU_SMP_CAN needs /chosen/zephyr,canbus to name an enabled CAN device");
 
-/* The device listens here and answers one id higher. Kept a convention rather
- * than two settings so the host's placement label is one number.
+/* The device listens on its node id and answers one id higher. Kept a convention
+ * rather than two settings so the host's placement label is one number.
+ *
+ * Resolved at RUNTIME, not compile time. The node id comes from the flash
+ * identity record when a board has one, so a single firmware image serves a
+ * whole fleet -- see include/balena_mcu/identity.h for why that matters more
+ * than it first appears.
  */
-#define RX_ID ((uint32_t)CONFIG_BALENA_MCU_CAN_NODE_ID)
-#define TX_ID (RX_ID + 1U)
-
 static const struct device *const can_dev = DEVICE_DT_GET(CAN_NODE);
 static struct smp_transport smp_can_transport;
 static struct isotp_recv_ctx recv_ctx;
 
-static const struct isotp_msg_id rx_addr = {
-	.std_id = RX_ID,
+static uint32_t rx_id;
+static uint32_t tx_id;
+
+/* Filled in at init once the node id is known. Not const any more, for the same
+ * reason.
+ */
+static struct isotp_msg_id rx_addr = {
 	.dl = 8,
 };
-static const struct isotp_msg_id tx_addr = {
-	.std_id = TX_ID,
+static struct isotp_msg_id tx_addr = {
 	.dl = 8,
 };
 
@@ -195,6 +206,24 @@ static int smp_can_init(void)
 		return -ENODEV;
 	}
 
+#ifdef CONFIG_BALENA_MCU_IDENTITY
+	if (balena_mcu_identity_is_corrupt()) {
+		/* Deliberately fatal rather than falling back. See
+		 * balena_mcu_identity_is_corrupt() for why guessing an address
+		 * is worse than being unreachable.
+		 */
+		LOG_ERR("this board has a damaged identity record, so its CAN address is "
+			"unknown; refusing to bind rather than risk colliding with another "
+			"node on the default id. Re-provision it over SWD.");
+		return -EINVAL;
+	}
+#endif
+
+	rx_id = balena_mcu_can_node_id();
+	tx_id = rx_id + 1U;
+	rx_addr.std_id = rx_id;
+	tx_addr.std_id = tx_id;
+
 	rc = can_start(can_dev);
 	if (rc != 0 && rc != -EALREADY) {
 		LOG_ERR("failed to start CAN device %s (%d)", can_dev->name, rc);
@@ -203,7 +232,7 @@ static int smp_can_init(void)
 
 	rc = isotp_bind(&recv_ctx, can_dev, &rx_addr, &tx_addr, &fc_opts, K_FOREVER);
 	if (rc != ISOTP_N_OK) {
-		LOG_ERR("failed to bind ISO-TP on id %#x (%d)", RX_ID, rc);
+		LOG_ERR("failed to bind ISO-TP on id %#x (%d)", rx_id, rc);
 		return -EIO;
 	}
 
@@ -224,7 +253,7 @@ static int smp_can_init(void)
 	k_thread_name_set(&smp_can_rx_thread_data, "balena_mcu_can");
 
 	LOG_INF("SMP over ISO-TP on %s, receiving on %#x and replying on %#x",
-		can_dev->name, RX_ID, TX_ID);
+		can_dev->name, rx_id, tx_id);
 
 	return 0;
 }

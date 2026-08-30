@@ -303,6 +303,41 @@ endif # BALENA_MCU_CAN_LOG
 
 endif # BALENA_MCU_SMP_CAN
 
+config BALENA_MCU_IDENTITY
+	bool "Per-board identity read from flash"
+	default y
+	depends on FLASH_MAP
+	select CRC
+	help
+	  Reads a 32-byte record from the start of `storage_partition` carrying
+	  this board's CAN node id and serial, so that ONE firmware image serves a
+	  whole fleet.
+
+	  Without this a CAN node id is a Kconfig symbol, which makes the built
+	  image board-specific -- and since firmware ships as an OCI image, that
+	  makes the SERVICE IMAGE board-specific too. A fleet of N boards becomes
+	  N images in the registry with deltas against the wrong baselines.
+
+	  The record lives outside both MCUboot slots, so a firmware update cannot
+	  cost a board its address. It is not code and is deliberately not covered
+	  by MCUboot's signature.
+
+	  A board with no valid record uses the built-in defaults, which is what
+	  keeps a plain `west build`, native_sim and the CI gates working with
+	  nothing provisioned. Boards with no storage partition at all compile to
+	  the same defaults rather than failing to build.
+
+	  Write a record with scripts/make-identity.py.
+
+config BALENA_MCU_IDENTITY_INIT_PRIORITY
+	int "Init priority for reading the identity record"
+	default 90
+	depends on BALENA_MCU_IDENTITY
+	help
+	  Must be BEFORE anything that consumes identity -- notably
+	  BALENA_MCU_CAN_INIT_PRIORITY, since the CAN transport reads the node id
+	  when it binds its filters.
+
 config BALENA_MCU_HEALTH
 	bool "Application liveness watchdog"
 	default n

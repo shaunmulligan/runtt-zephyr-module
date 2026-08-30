@@ -40,13 +40,18 @@
 #include <zephyr/logging/log_core.h>
 #include <zephyr/logging/log_output.h>
 
+#include <balena_mcu/can_id.h>
+
 #define CAN_NODE DT_CHOSEN(zephyr_canbus)
 
 /* The third id a node owns: requests, replies one higher, logs one higher again.
  * Kept in step with the host, which derives the same number from the placement
  * label rather than being told it separately.
+ *
+ * Resolved at runtime through the same helper the SMP transport uses, so the two
+ * cannot be derived from different node ids.
  */
-#define LOG_ID ((uint32_t)CONFIG_BALENA_MCU_CAN_NODE_ID + 2U)
+static uint32_t log_id;
 
 static const struct device *const can_dev = DEVICE_DT_GET(CAN_NODE);
 
@@ -111,7 +116,7 @@ static void tx_thread(void *a, void *b, void *c)
 static void emit(const uint8_t *data, size_t len)
 {
 	struct can_frame frame = {
-		.id = LOG_ID,
+		.id = log_id,
 		.dlc = (uint8_t)len,
 	};
 
@@ -256,6 +261,8 @@ static int can_log_init(void)
 	if (!device_is_ready(can_dev)) {
 		return -ENODEV;
 	}
+
+	log_id = balena_mcu_can_node_id() + BALENA_MCU_CAN_LOG_ID_OFFSET;
 
 	k_thread_create(&tx_thread_data, tx_stack, K_THREAD_STACK_SIZEOF(tx_stack),
 			tx_thread, NULL, NULL, NULL,

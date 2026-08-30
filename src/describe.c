@@ -27,6 +27,13 @@
  * declare one, because the fallback below was the only definition in scope.
  */
 #if defined(__has_include)
+#ifdef CONFIG_BALENA_MCU_IDENTITY
+#include <balena_mcu/identity.h>
+#endif
+#ifdef CONFIG_BALENA_MCU_SMP_CAN
+#include <balena_mcu/can_id.h>
+#endif
+
 #if __has_include(<app_version.h>)
 #include <app_version.h>
 #endif
@@ -64,6 +71,32 @@ static int balena_mcu_describe(struct smp_streamer *ctxt)
 	      */
 	     zcbor_tstr_put_lit(zse, "idle") &&
 	     zcbor_bool_put(zse, IS_ENABLED(CONFIG_BALENA_MCU_IDLE));
+
+#ifdef CONFIG_BALENA_MCU_IDENTITY
+	/* Whether this board carries a valid identity record. "Provisioned and
+	 * happens to use the default id" and "never provisioned" are different
+	 * operational states and the host should not have to infer which.
+	 */
+	ok = ok && zcbor_tstr_put_lit(zse, "provisioned") &&
+	     zcbor_bool_put(zse, balena_mcu_identity_is_provisioned());
+
+	const char *serial = balena_mcu_identity_serial();
+
+	if (serial != NULL) {
+		ok = ok && zcbor_tstr_put_lit(zse, "serial") &&
+		     zcbor_tstr_put_term(zse, serial, BALENA_MCU_IDENTITY_SERIAL_LEN);
+	}
+#endif
+
+#ifdef CONFIG_BALENA_MCU_SMP_CAN
+	/* The id this board is ACTUALLY answering on. A host whose placement
+	 * label disagrees can only find out once it is already talking, but
+	 * "answers to 0x45, your label says 0x42" beats a bare timeout when the
+	 * operator is looking at the wrong board of several.
+	 */
+	ok = ok && zcbor_tstr_put_lit(zse, "can_node_id") &&
+	     zcbor_uint32_put(zse, balena_mcu_can_node_id());
+#endif
 
 #ifdef CONFIG_BALENA_MCU_HEALTH
 	/* Only advertised when the application opted in, so the host can tell
