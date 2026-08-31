@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2026 balena
- * SPDX-License-Identifier: Apache-2.0
+ * Copyright (c) 2026 The runtt authors
+ * SPDX-License-Identifier: MIT OR Apache-2.0
  */
 #ifndef BALENA_MCU_HEALTH_H_
 #define BALENA_MCU_HEALTH_H_

@@ -1,6 +1,6 @@
 /*
- * Copyright (c) 2026 balena
- * SPDX-License-Identifier: Apache-2.0
+ * Copyright (c) 2026 The runtt authors
+ * SPDX-License-Identifier: MIT OR Apache-2.0
  *
  * The `describe` command: a custom SMP group the host queries to learn what it
  * is talking to.
