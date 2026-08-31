@@ -3,9 +3,9 @@
 # Dockerfile. No source changes.
 
 menuconfig RUNTT
-	bool "balena MCU runtime support"
+	bool "runtt device support"
 	help
-	  Device-side support for the io.balena.mcu runtime: an SMP management
+	  Device-side support for the runtt runtime: an SMP management
 	  channel, a separate log channel, and a describe command that lets the
 	  host identify the firmware contract.
 
@@ -59,7 +59,7 @@ config RUNTT_USB_MANUFACTURER
 
 config RUNTT_USB_PRODUCT
 	string "USB product string"
-	default "balena MCU device"
+	default "runtt device"
 
 config RUNTT_USB_INIT_PRIORITY
 	int "USB init priority"

@@ -75,8 +75,8 @@ static struct usbd_desc_node runtt_provisioned_sn = {
 };
 #endif
 
-USBD_DESC_CONFIG_DEFINE(runtt_fs_desc, "balena MCU FS configuration");
-USBD_DESC_CONFIG_DEFINE(runtt_hs_desc, "balena MCU HS configuration");
+USBD_DESC_CONFIG_DEFINE(runtt_fs_desc, "runtt FS configuration");
+USBD_DESC_CONFIG_DEFINE(runtt_hs_desc, "runtt HS configuration");
 
 /* A macro rather than a `static const`: USBD_CONFIGURATION_DEFINE builds a
  * static initialiser, and a const variable is not a constant expression in C.
