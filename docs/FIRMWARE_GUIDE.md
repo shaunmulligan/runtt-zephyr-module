@@ -40,7 +40,7 @@ manifest:
           - tinycrypt
           - <your board's HAL>
     - name: runtt
-      url: https://github.com/balena-io/runtt
+      url: https://github.com/<org>/runtt   # wherever this lives
       revision: main
       path: modules/runtt
 ```
