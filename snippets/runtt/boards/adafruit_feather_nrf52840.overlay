@@ -16,7 +16,7 @@
 &zephyr_udc0 {
 	cdc_acm_mgmt: cdc_acm_mgmt {
 		compatible = "zephyr,cdc-acm-uart";
-		label = "balena-mcu-mgmt";
+		label = "runtt-mgmt";
 		/*
 		 * Not optional for SMP. Without it CDC-ACM silently DROPS
 		 * received data when the class has no buffer queued, and
@@ -36,7 +36,7 @@
 
 	cdc_acm_log: cdc_acm_log {
 		compatible = "zephyr,cdc-acm-uart";
-		label = "balena-mcu-log";
+		label = "runtt-log";
 		/*
 		 * Deliberately NO hw-flow-control here, unlike the management
 		 * channel. The property means "block instead of drop": with it

@@ -2,8 +2,8 @@
  * Copyright (c) 2026 The runtt authors
  * SPDX-License-Identifier: MIT OR Apache-2.0
  */
-#ifndef BALENA_MCU_HEALTH_H_
-#define BALENA_MCU_HEALTH_H_
+#ifndef RUNTT_HEALTH_H_
+#define RUNTT_HEALTH_H_
 
 #include <stdbool.h>
 
@@ -21,7 +21,7 @@
  * Optional: firmware that does not call it is still fully manageable, it just
  * gets the weaker guarantee.
  */
-void balena_mcu_health_feed(void);
+void runtt_health_feed(void);
 
 /**
  * @brief Whether the application has fed the watchdog within its window.
@@ -29,6 +29,6 @@ void balena_mcu_health_feed(void);
  * Consulted by the describe command so the host can see liveness without
  * needing a separate channel.
  */
-bool balena_mcu_health_ok(void);
+bool runtt_health_ok(void);
 
-#endif /* BALENA_MCU_HEALTH_H_ */
+#endif /* RUNTT_HEALTH_H_ */

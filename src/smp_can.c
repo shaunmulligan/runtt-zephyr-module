@@ -16,7 +16,7 @@
  * framing the console transport needs.
  *
  * Addressing matches the host side (see crates/transport/src/can.rs): the device
- * receives on BALENA_MCU_CAN_NODE_ID and replies one id higher, so a placement
+ * receives on RUNTT_CAN_NODE_ID and replies one id higher, so a placement
  * label stays a single number.
  */
 
@@ -32,23 +32,23 @@
 
 #include <mgmt/mcumgr/transport/smp_internal.h>
 
-#include <balena_mcu/can_id.h>
-#ifdef CONFIG_BALENA_MCU_IDENTITY
-#include <balena_mcu/identity.h>
+#include <runtt/can_id.h>
+#ifdef CONFIG_RUNTT_IDENTITY
+#include <runtt/identity.h>
 #endif
 
-LOG_MODULE_REGISTER(balena_mcu_can, CONFIG_BALENA_MCU_LOG_LEVEL);
+LOG_MODULE_REGISTER(runtt_can, CONFIG_RUNTT_LOG_LEVEL);
 
 #define CAN_NODE DT_CHOSEN(zephyr_canbus)
 BUILD_ASSERT(DT_NODE_HAS_STATUS(CAN_NODE, okay),
-	     "BALENA_MCU_SMP_CAN needs /chosen/zephyr,canbus to name an enabled CAN device");
+	     "RUNTT_SMP_CAN needs /chosen/zephyr,canbus to name an enabled CAN device");
 
 /* The device listens on its node id and answers one id higher. Kept a convention
  * rather than two settings so the host's placement label is one number.
  *
  * Resolved at RUNTIME, not compile time. The node id comes from the flash
  * identity record when a board has one, so a single firmware image serves a
- * whole fleet -- see include/balena_mcu/identity.h for why that matters more
+ * whole fleet -- see include/runtt/identity.h for why that matters more
  * than it first appears.
  */
 static const struct device *const can_dev = DEVICE_DT_GET(CAN_NODE);
@@ -116,14 +116,14 @@ static int smp_can_tx_pkt(struct net_buf *nb)
 	rc = isotp_send(&send_ctx, can_dev, nb->data, nb->len, &tx_addr, &rx_addr,
 			smp_can_tx_complete, NULL);
 	if (rc == ISOTP_N_OK) {
-		if (k_sem_take(&tx_done, K_MSEC(CONFIG_BALENA_MCU_CAN_TX_TIMEOUT_MS)) != 0) {
+		if (k_sem_take(&tx_done, K_MSEC(CONFIG_RUNTT_CAN_TX_TIMEOUT_MS)) != 0) {
 			/* No flow control from the peer, or nobody listening. The
 			 * transfer may still be in flight, so the packet cannot be
 			 * freed yet without risking a use-after-free.
 			 */
 			LOG_ERR("ISO-TP send timed out after %d ms; leaking one SMP packet "
 				"rather than freeing a buffer the driver may still be reading",
-				CONFIG_BALENA_MCU_CAN_TX_TIMEOUT_MS);
+				CONFIG_RUNTT_CAN_TX_TIMEOUT_MS);
 			return -ETIMEDOUT;
 		}
 		rc = tx_result;
@@ -194,7 +194,7 @@ static void smp_can_rx_thread(void *a, void *b, void *c)
 	}
 }
 
-K_THREAD_STACK_DEFINE(smp_can_rx_stack, CONFIG_BALENA_MCU_CAN_RX_STACK_SIZE);
+K_THREAD_STACK_DEFINE(smp_can_rx_stack, CONFIG_RUNTT_CAN_RX_STACK_SIZE);
 static struct k_thread smp_can_rx_thread_data;
 
 static int smp_can_init(void)
@@ -206,10 +206,10 @@ static int smp_can_init(void)
 		return -ENODEV;
 	}
 
-#ifdef CONFIG_BALENA_MCU_IDENTITY
-	if (balena_mcu_identity_is_corrupt()) {
+#ifdef CONFIG_RUNTT_IDENTITY
+	if (runtt_identity_is_corrupt()) {
 		/* Deliberately fatal rather than falling back. See
-		 * balena_mcu_identity_is_corrupt() for why guessing an address
+		 * runtt_identity_is_corrupt() for why guessing an address
 		 * is worse than being unreachable.
 		 */
 		LOG_ERR("this board has a damaged identity record, so its CAN address is "
@@ -219,7 +219,7 @@ static int smp_can_init(void)
 	}
 #endif
 
-	rx_id = balena_mcu_can_node_id();
+	rx_id = runtt_can_node_id();
 	tx_id = rx_id + 1U;
 	rx_addr.std_id = rx_id;
 	tx_addr.std_id = tx_id;
@@ -249,8 +249,8 @@ static int smp_can_init(void)
 	k_thread_create(&smp_can_rx_thread_data, smp_can_rx_stack,
 			K_THREAD_STACK_SIZEOF(smp_can_rx_stack),
 			smp_can_rx_thread, NULL, NULL, NULL,
-			CONFIG_BALENA_MCU_CAN_RX_THREAD_PRIORITY, 0, K_NO_WAIT);
-	k_thread_name_set(&smp_can_rx_thread_data, "balena_mcu_can");
+			CONFIG_RUNTT_CAN_RX_THREAD_PRIORITY, 0, K_NO_WAIT);
+	k_thread_name_set(&smp_can_rx_thread_data, "runtt_can");
 
 	LOG_INF("SMP over ISO-TP on %s, receiving on %#x and replying on %#x",
 		can_dev->name, rx_id, tx_id);
@@ -258,4 +258,4 @@ static int smp_can_init(void)
 	return 0;
 }
 
-SYS_INIT(smp_can_init, APPLICATION, CONFIG_BALENA_MCU_CAN_INIT_PRIORITY);
+SYS_INIT(smp_can_init, APPLICATION, CONFIG_RUNTT_CAN_INIT_PRIORITY);

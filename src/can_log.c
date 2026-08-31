@@ -40,7 +40,7 @@
 #include <zephyr/logging/log_core.h>
 #include <zephyr/logging/log_output.h>
 
-#include <balena_mcu/can_id.h>
+#include <runtt/can_id.h>
 
 #define CAN_NODE DT_CHOSEN(zephyr_canbus)
 
@@ -81,9 +81,9 @@ static uint32_t frames_dropped;
  * lost only when the queue is genuinely full, which is real backpressure rather
  * than an artefact of mailbox timing.
  */
-K_MSGQ_DEFINE(tx_q, sizeof(struct can_frame), CONFIG_BALENA_MCU_CAN_LOG_QUEUE_DEPTH, 4);
+K_MSGQ_DEFINE(tx_q, sizeof(struct can_frame), CONFIG_RUNTT_CAN_LOG_QUEUE_DEPTH, 4);
 
-static K_THREAD_STACK_DEFINE(tx_stack, CONFIG_BALENA_MCU_CAN_LOG_TX_STACK_SIZE);
+static K_THREAD_STACK_DEFINE(tx_stack, CONFIG_RUNTT_CAN_LOG_TX_STACK_SIZE);
 static struct k_thread tx_thread_data;
 
 static void tx_thread(void *a, void *b, void *c)
@@ -101,7 +101,7 @@ static void tx_thread(void *a, void *b, void *c)
 		 * returning promptly, and a bound stops a wedged controller
 		 * parking this thread forever.
 		 */
-		(void)can_send(can_dev, &frame, K_MSEC(CONFIG_BALENA_MCU_CAN_LOG_TX_TIMEOUT_MS),
+		(void)can_send(can_dev, &frame, K_MSEC(CONFIG_RUNTT_CAN_LOG_TX_TIMEOUT_MS),
 			       NULL, NULL);
 	}
 }
@@ -192,7 +192,7 @@ static void flush_frame(void)
 	k_spin_unlock(&fill_lock, key);
 }
 
-static uint8_t out_buf[CONFIG_BALENA_MCU_CAN_LOG_BUF_SIZE];
+static uint8_t out_buf[CONFIG_RUNTT_CAN_LOG_BUF_SIZE];
 LOG_OUTPUT_DEFINE(log_output_can, out, out_buf, sizeof(out_buf));
 
 static void process(const struct log_backend *const backend, union log_msg_generic *msg)
@@ -251,7 +251,7 @@ static const struct log_backend_api can_log_api = {
 	.init = init_backend,
 };
 
-LOG_BACKEND_DEFINE(balena_mcu_can_log, can_log_api, true);
+LOG_BACKEND_DEFINE(runtt_can_log, can_log_api, true);
 
 /* Runs after smp_can_init, which is what calls can_start(). Sharing the started
  * controller rather than starting it again is why the priority matters.
@@ -262,22 +262,22 @@ static int can_log_init(void)
 		return -ENODEV;
 	}
 
-	log_id = balena_mcu_can_node_id() + BALENA_MCU_CAN_LOG_ID_OFFSET;
+	log_id = runtt_can_node_id() + RUNTT_CAN_LOG_ID_OFFSET;
 
 	k_thread_create(&tx_thread_data, tx_stack, K_THREAD_STACK_SIZEOF(tx_stack),
 			tx_thread, NULL, NULL, NULL,
-			CONFIG_BALENA_MCU_CAN_LOG_TX_THREAD_PRIORITY, 0, K_NO_WAIT);
-	k_thread_name_set(&tx_thread_data, "balena_mcu_canlog");
+			CONFIG_RUNTT_CAN_LOG_TX_THREAD_PRIORITY, 0, K_NO_WAIT);
+	k_thread_name_set(&tx_thread_data, "runtt_canlog");
 
 	can_log_ready = true;
 
 	return 0;
 }
 
-SYS_INIT(can_log_init, APPLICATION, CONFIG_BALENA_MCU_CAN_LOG_INIT_PRIORITY);
+SYS_INIT(can_log_init, APPLICATION, CONFIG_RUNTT_CAN_LOG_INIT_PRIORITY);
 
 /* Test hook: how many frames the controller had no room for. */
-uint32_t balena_mcu_can_log_dropped(void)
+uint32_t runtt_can_log_dropped(void)
 {
 	return frames_dropped;
 }

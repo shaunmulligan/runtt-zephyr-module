@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The runtt authors
  * SPDX-License-Identifier: MIT OR Apache-2.0
  */
-#include <balena_mcu/health.h>
+#include <runtt/health.h>
 #include <zephyr/kernel.h>
 
 /*
@@ -14,12 +14,12 @@
 
 static atomic_t last_feed_ticks;
 
-void balena_mcu_health_feed(void)
+void runtt_health_feed(void)
 {
 	atomic_set(&last_feed_ticks, (atomic_val_t)k_uptime_get_32());
 }
 
-bool balena_mcu_health_ok(void)
+bool runtt_health_ok(void)
 {
 	uint32_t last = (uint32_t)atomic_get(&last_feed_ticks);
 

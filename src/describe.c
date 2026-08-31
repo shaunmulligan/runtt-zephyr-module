@@ -16,8 +16,8 @@
 #include <zcbor_common.h>
 #include <zcbor_encode.h>
 
-#ifdef CONFIG_BALENA_MCU_HEALTH
-#include <balena_mcu/health.h>
+#ifdef CONFIG_RUNTT_HEALTH
+#include <runtt/health.h>
 #endif
 
 /*
@@ -27,11 +27,11 @@
  * declare one, because the fallback below was the only definition in scope.
  */
 #if defined(__has_include)
-#ifdef CONFIG_BALENA_MCU_IDENTITY
-#include <balena_mcu/identity.h>
+#ifdef CONFIG_RUNTT_IDENTITY
+#include <runtt/identity.h>
 #endif
-#ifdef CONFIG_BALENA_MCU_SMP_CAN
-#include <balena_mcu/can_id.h>
+#ifdef CONFIG_RUNTT_SMP_CAN
+#include <runtt/can_id.h>
 #endif
 
 #if __has_include(<app_version.h>)
@@ -39,92 +39,92 @@
 #endif
 #endif
 
-#define BALENA_MCU_GROUP_ID  CONFIG_BALENA_MCU_SMP_GROUP_ID
-#define BALENA_MCU_CMD_DESCRIBE 0
+#define RUNTT_GROUP_ID  CONFIG_RUNTT_SMP_GROUP_ID
+#define RUNTT_CMD_DESCRIBE 0
 
 #ifndef APP_VERSION_STRING
 #define APP_VERSION_STRING "unknown"
 #endif
 
-static int balena_mcu_describe(struct smp_streamer *ctxt)
+static int runtt_describe(struct smp_streamer *ctxt)
 {
 	zcbor_state_t *zse = ctxt->writer->zs;
 	bool ok;
 
 	ok = zcbor_tstr_put_lit(zse, "contract") &&
-	     zcbor_tstr_put_lit(zse, CONFIG_BALENA_MCU_CONTRACT_VERSION) &&
+	     zcbor_tstr_put_lit(zse, CONFIG_RUNTT_CONTRACT_VERSION) &&
 	     zcbor_tstr_put_lit(zse, "board") &&
 	     zcbor_tstr_put_lit(zse, CONFIG_BOARD_TARGET) &&
 	     zcbor_tstr_put_lit(zse, "app_version") &&
 	     zcbor_tstr_put_lit(zse, APP_VERSION_STRING) &&
 	     zcbor_tstr_put_lit(zse, "channels") &&
-	     zcbor_uint32_put(zse, CONFIG_BALENA_MCU_CHANNELS) &&
+	     zcbor_uint32_put(zse, CONFIG_RUNTT_CHANNELS) &&
 	     /* Whether this device can receive an update at all. A board with no
 	      * secondary slot is a legitimate bring-up configuration, but a host
 	      * that only finds out when the upload fails reports a raw
 	      * MGMT_ERR_ENOTSUP, which explains nothing.
 	      */
 	     zcbor_tstr_put_lit(zse, "img") &&
-	     zcbor_bool_put(zse, IS_ENABLED(CONFIG_BALENA_MCU_IMG_MGMT)) &&
+	     zcbor_bool_put(zse, IS_ENABLED(CONFIG_RUNTT_IMG_MGMT)) &&
 	     /* True only for the provisioning placeholder. Lets the host say
 	      * "this board has never received firmware" instead of guessing.
 	      */
 	     zcbor_tstr_put_lit(zse, "idle") &&
-	     zcbor_bool_put(zse, IS_ENABLED(CONFIG_BALENA_MCU_IDLE));
+	     zcbor_bool_put(zse, IS_ENABLED(CONFIG_RUNTT_IDLE));
 
-#ifdef CONFIG_BALENA_MCU_IDENTITY
+#ifdef CONFIG_RUNTT_IDENTITY
 	/* Whether this board carries a valid identity record. "Provisioned and
 	 * happens to use the default id" and "never provisioned" are different
 	 * operational states and the host should not have to infer which.
 	 */
 	ok = ok && zcbor_tstr_put_lit(zse, "provisioned") &&
-	     zcbor_bool_put(zse, balena_mcu_identity_is_provisioned());
+	     zcbor_bool_put(zse, runtt_identity_is_provisioned());
 
-	const char *serial = balena_mcu_identity_serial();
+	const char *serial = runtt_identity_serial();
 
 	if (serial != NULL) {
 		ok = ok && zcbor_tstr_put_lit(zse, "serial") &&
-		     zcbor_tstr_put_term(zse, serial, BALENA_MCU_IDENTITY_SERIAL_LEN);
+		     zcbor_tstr_put_term(zse, serial, RUNTT_IDENTITY_SERIAL_LEN);
 	}
 #endif
 
-#ifdef CONFIG_BALENA_MCU_SMP_CAN
+#ifdef CONFIG_RUNTT_SMP_CAN
 	/* The id this board is ACTUALLY answering on. A host whose placement
 	 * label disagrees can only find out once it is already talking, but
 	 * "answers to 0x45, your label says 0x42" beats a bare timeout when the
 	 * operator is looking at the wrong board of several.
 	 */
 	ok = ok && zcbor_tstr_put_lit(zse, "can_node_id") &&
-	     zcbor_uint32_put(zse, balena_mcu_can_node_id());
+	     zcbor_uint32_put(zse, runtt_can_node_id());
 #endif
 
-#ifdef CONFIG_BALENA_MCU_HEALTH
+#ifdef CONFIG_RUNTT_HEALTH
 	/* Only advertised when the application opted in, so the host can tell
 	 * "healthy" from "does not report health".
 	 */
 	ok = ok && zcbor_tstr_put_lit(zse, "app_healthy") &&
-	     zcbor_bool_put(zse, balena_mcu_health_ok());
+	     zcbor_bool_put(zse, runtt_health_ok());
 #endif
 
 	return ok ? MGMT_ERR_EOK : MGMT_ERR_EMSGSIZE;
 }
 
-static const struct mgmt_handler balena_mcu_handlers[] = {
-	[BALENA_MCU_CMD_DESCRIBE] = {
-		.mh_read = balena_mcu_describe,
+static const struct mgmt_handler runtt_handlers[] = {
+	[RUNTT_CMD_DESCRIBE] = {
+		.mh_read = runtt_describe,
 		.mh_write = NULL,
 	},
 };
 
-static struct mgmt_group balena_mcu_group = {
-	.mg_handlers = balena_mcu_handlers,
-	.mg_handlers_count = ARRAY_SIZE(balena_mcu_handlers),
-	.mg_group_id = BALENA_MCU_GROUP_ID,
+static struct mgmt_group runtt_group = {
+	.mg_handlers = runtt_handlers,
+	.mg_handlers_count = ARRAY_SIZE(runtt_handlers),
+	.mg_group_id = RUNTT_GROUP_ID,
 };
 
-static void balena_mcu_register(void)
+static void runtt_register(void)
 {
-	mgmt_register_group(&balena_mcu_group);
+	mgmt_register_group(&runtt_group);
 }
 
-MCUMGR_HANDLER_DEFINE(balena_mcu, balena_mcu_register);
+MCUMGR_HANDLER_DEFINE(runtt, runtt_register);

@@ -1,17 +1,17 @@
 # The developer-facing surface is deliberately close to zero: add the module to
-# west.yml, add `-Dapp_SNIPPET=balena-mcu` to the build, and wrap it in the two-stage
+# west.yml, add `-Dapp_SNIPPET=runtt` to the build, and wrap it in the two-stage
 # Dockerfile. No source changes.
 
-menuconfig BALENA_MCU
+menuconfig RUNTT
 	bool "balena MCU runtime support"
 	help
 	  Device-side support for the io.balena.mcu runtime: an SMP management
 	  channel, a separate log channel, and a describe command that lets the
 	  host identify the firmware contract.
 
-if BALENA_MCU
+if RUNTT
 
-config BALENA_MCU_CHANNELS
+config RUNTT_CHANNELS
 	int "Number of contract channels"
 	default 2
 	range 1 2
@@ -21,7 +21,7 @@ config BALENA_MCU_CHANNELS
 	  bring-up over a debug probe's UART bridge, where log output shares the
 	  management link using the console framing.
 
-config BALENA_MCU_USB
+config RUNTT_USB
 	bool "Set up the USB device for the contract channels"
 	default y if DT_HAS_ZEPHYR_CDC_ACM_UART_ENABLED
 	depends on USB_DEVICE_STACK_NEXT
@@ -39,9 +39,9 @@ config BALENA_MCU_USB
 	  from each node's devicetree `label` and are handled by the CDC-ACM
 	  driver.
 
-if BALENA_MCU_USB
+if RUNTT_USB
 
-config BALENA_MCU_USB_VID
+config RUNTT_USB_VID
 	hex "USB vendor ID"
 	default 0x2fe3
 	help
@@ -49,32 +49,32 @@ config BALENA_MCU_USB_VID
 	  which is exactly why the contract identifies channels by interface
 	  string descriptor rather than by VID/PID.
 
-config BALENA_MCU_USB_PID
+config RUNTT_USB_PID
 	hex "USB product ID"
 	default 0x0004
 
-config BALENA_MCU_USB_MANUFACTURER
+config RUNTT_USB_MANUFACTURER
 	string "USB manufacturer string"
-	default "balena"
+	default "runtt"
 
-config BALENA_MCU_USB_PRODUCT
+config RUNTT_USB_PRODUCT
 	string "USB product string"
 	default "balena MCU device"
 
-config BALENA_MCU_USB_INIT_PRIORITY
+config RUNTT_USB_INIT_PRIORITY
 	int "USB init priority"
 	default 97
 	help
 	  Must run after the CDC-ACM instances are initialised and before the
 	  application's main().
 
-endif # BALENA_MCU_USB
+endif # RUNTT_USB
 
-module = BALENA_MCU
-module-str = balena_mcu
+module = RUNTT
+module-str = runtt
 source "subsys/logging/Kconfig.template.log_config"
 
-config BALENA_MCU_IMG_MGMT
+config RUNTT_IMG_MGMT
 	bool "Image management (the update half of the contract)"
 	default y if $(dt_nodelabel_exists,slot1_partition)
 	select MCUMGR_GRP_IMG
@@ -97,7 +97,7 @@ config BALENA_MCU_IMG_MGMT
 	  Do not ship it. For a deliverable image use a board target with slots
 	  (rpi_pico/rp2040/mcuboot) built under sysbuild with MCUboot.
 
-config BALENA_MCU_SMP_DESCRIBE
+config RUNTT_SMP_DESCRIBE
 	bool "Custom SMP describe command"
 	default y
 	depends on MCUMGR
@@ -106,20 +106,20 @@ config BALENA_MCU_SMP_DESCRIBE
 	  application version and channel count. This is what turns version skew
 	  into a clear error instead of a timeout.
 
-config BALENA_MCU_SMP_GROUP_ID
+config RUNTT_SMP_GROUP_ID
 	int "SMP group id for the describe command"
 	default 64
 	range 64 65535
-	depends on BALENA_MCU_SMP_DESCRIBE
+	depends on RUNTT_SMP_DESCRIBE
 	help
 	  64 is MGMT_GROUP_ID_PERUSER, the first id reserved for applications.
 
-config BALENA_MCU_CONTRACT_VERSION
+config RUNTT_CONTRACT_VERSION
 	string "Contract version reported by describe"
-	default "1.2.0"
-	depends on BALENA_MCU_SMP_DESCRIBE
+	default "2.0.0"
+	depends on RUNTT_SMP_DESCRIBE
 
-config BALENA_MCU_SIM_SLOT_SHIM
+config RUNTT_SIM_SLOT_SHIM
 	bool "Report the DT code partition as the running slot (simulated targets)"
 	depends on ARCH_POSIX
 	select HAS_FLASH_LOAD_OFFSET
@@ -144,11 +144,11 @@ config BALENA_MCU_SIM_SLOT_SHIM
 	  fictional rather than unbuildable. Never enable it on real hardware --
 	  the dependency on ARCH_POSIX is deliberate.
 
-config BALENA_MCU_IDLE
+config RUNTT_IDLE
 	bool "This image is the provisioning placeholder"
 	default n
 	help
-	  Set by balena-mcu-idle, the no-op application that ships in slot 0 at
+	  Set by runtt-idle, the no-op application that ships in slot 0 at
 	  provisioning time. Reported over describe so the host can tell a board
 	  that is awaiting its first firmware from one running something it does
 	  not recognise -- those look identical otherwise, and warrant completely
@@ -156,7 +156,7 @@ config BALENA_MCU_IDLE
 
 	  Customer firmware should never set this.
 
-config BALENA_MCU_SMP_CAN
+config RUNTT_SMP_CAN
 	bool "SMP over ISO-TP on a CAN bus"
 	default n
 	depends on MCUMGR
@@ -178,9 +178,9 @@ config BALENA_MCU_SMP_CAN
 	  MCUMGR already depends on NET_BUF, and selecting across that makes
 	  Kconfig report a recursive dependency and refuse to configure at all.
 
-if BALENA_MCU_SMP_CAN
+if RUNTT_SMP_CAN
 
-config BALENA_MCU_CAN_NODE_ID
+config RUNTT_CAN_NODE_ID
 	hex "CAN id this device receives SMP requests on"
 	default 0x42
 	range 0x0 0x7fd
@@ -191,7 +191,7 @@ config BALENA_MCU_CAN_NODE_ID
 	  (can:<iface>/<node-id>) then carries a single number and the parts
 	  cannot drift apart.
 
-	  The console id is reserved whether or not BALENA_MCU_CAN_LOG is set, so
+	  The console id is reserved whether or not RUNTT_CAN_LOG is set, so
 	  that turning logging on later cannot collide with a neighbour already on
 	  the bus.
 
@@ -199,7 +199,7 @@ config BALENA_MCU_CAN_NODE_ID
 	  0x7ff would leave no room for the other two. Give each board on a bus
 	  its own id, at least three apart.
 
-config BALENA_MCU_CAN_RX_STACK_SIZE
+config RUNTT_CAN_RX_STACK_SIZE
 	int "Stack for the CAN receive thread"
 	default 2048
 	help
@@ -209,11 +209,11 @@ config BALENA_MCU_CAN_RX_STACK_SIZE
 	  default overflowed on the nRF52840 and presented as an MPU fault jumping
 	  into a data symbol -- see docs/PROVISIONING.md.
 
-config BALENA_MCU_CAN_RX_THREAD_PRIORITY
+config RUNTT_CAN_RX_THREAD_PRIORITY
 	int "Priority of the CAN receive thread"
 	default 5
 
-config BALENA_MCU_CAN_TX_TIMEOUT_MS
+config RUNTT_CAN_TX_TIMEOUT_MS
 	int "How long to wait for an ISO-TP send to complete (ms)"
 	default 2000
 	help
@@ -221,13 +221,13 @@ config BALENA_MCU_CAN_TX_TIMEOUT_MS
 	  indefinitely if nothing is listening. On timeout the response is
 	  abandoned and the host retries, which is what its retry logic is for.
 
-config BALENA_MCU_CAN_INIT_PRIORITY
+config RUNTT_CAN_INIT_PRIORITY
 	int "Init priority for the CAN SMP transport"
 	default 99
 	help
 	  After the CAN driver and ISO-TP are up.
 
-config BALENA_MCU_CAN_LOG
+config RUNTT_CAN_LOG
 	bool "Send the console over CAN as raw frames"
 	default y
 	depends on LOG && !LOG_MODE_MINIMAL
@@ -237,7 +237,7 @@ config BALENA_MCU_CAN_LOG
 	  transport's base64-and-CRC framing markers, which SMP over ISO-TP does
 	  not have. This gives the console its own path.
 
-	  Frames go out on BALENA_MCU_CAN_NODE_ID + 2 -- the third and last id a
+	  Frames go out on RUNTT_CAN_NODE_ID + 2 -- the third and last id a
 	  node owns. Being the highest of the three, it also has the lowest
 	  arbitration priority, so an upload in progress wins the bus against
 	  chatty logs.
@@ -249,9 +249,9 @@ config BALENA_MCU_CAN_LOG
 	  backpressure is the intent: a mangled line is a far better failure than
 	  a board that will not start.
 
-if BALENA_MCU_CAN_LOG
+if RUNTT_CAN_LOG
 
-config BALENA_MCU_CAN_LOG_BUF_SIZE
+config RUNTT_CAN_LOG_BUF_SIZE
 	int "Formatting buffer for the CAN log backend"
 	default 64
 	help
@@ -259,7 +259,7 @@ config BALENA_MCU_CAN_LOG_BUF_SIZE
 	  bounds the formatting, not the line: longer lines are emitted in
 	  several passes.
 
-config BALENA_MCU_CAN_LOG_QUEUE_DEPTH
+config RUNTT_CAN_LOG_QUEUE_DEPTH
 	int "Frames buffered between the logger and the bus"
 	default 32
 	help
@@ -271,39 +271,39 @@ config BALENA_MCU_CAN_LOG_QUEUE_DEPTH
 	  fails with -EAGAIN whenever no mailbox is free, and a mailbox frees only
 	  once the frame is on the wire -- which discards nearly everything.
 
-config BALENA_MCU_CAN_LOG_TX_STACK_SIZE
+config RUNTT_CAN_LOG_TX_STACK_SIZE
 	int "Stack for the CAN log sender thread"
 	default 768
 	help
 	  It only pops a frame and calls can_send(), so this is small.
 
-config BALENA_MCU_CAN_LOG_TX_THREAD_PRIORITY
+config RUNTT_CAN_LOG_TX_THREAD_PRIORITY
 	int "Priority of the CAN log sender thread"
 	default 10
 	help
 	  Below the SMP receive thread: management traffic should preempt logs,
 	  matching the arbitration priority the id ordering already gives.
 
-config BALENA_MCU_CAN_LOG_TX_TIMEOUT_MS
+config RUNTT_CAN_LOG_TX_TIMEOUT_MS
 	int "How long the sender waits for a mailbox (ms)"
 	default 100
 	help
 	  Bounded so a wedged controller cannot park the sender thread forever.
 	  Nothing upstream waits on this, so it can afford to be patient.
 
-config BALENA_MCU_CAN_LOG_INIT_PRIORITY
+config RUNTT_CAN_LOG_INIT_PRIORITY
 	int "Init priority for the CAN log backend"
 	default 99
 	help
-	  Must be at or after BALENA_MCU_CAN_INIT_PRIORITY: that is what starts
+	  Must be at or after RUNTT_CAN_INIT_PRIORITY: that is what starts
 	  the CAN controller, and this only borrows it. Until this runs, frames
 	  are discarded rather than sent to an unstarted device.
 
-endif # BALENA_MCU_CAN_LOG
+endif # RUNTT_CAN_LOG
 
-endif # BALENA_MCU_SMP_CAN
+endif # RUNTT_SMP_CAN
 
-config BALENA_MCU_IDENTITY
+config RUNTT_IDENTITY
 	bool "Per-board identity read from flash"
 	default y
 	depends on FLASH_MAP
@@ -329,24 +329,24 @@ config BALENA_MCU_IDENTITY
 
 	  Write a record with scripts/make-identity.py.
 
-config BALENA_MCU_IDENTITY_INIT_PRIORITY
+config RUNTT_IDENTITY_INIT_PRIORITY
 	int "Init priority for reading the identity record"
 	default 90
-	depends on BALENA_MCU_IDENTITY
+	depends on RUNTT_IDENTITY
 	help
 	  Must be BEFORE anything that consumes identity -- notably
-	  BALENA_MCU_CAN_INIT_PRIORITY, since the CAN transport reads the node id
+	  RUNTT_CAN_INIT_PRIORITY, since the CAN transport reads the node id
 	  when it binds its filters.
 
-config BALENA_MCU_HEALTH
+config RUNTT_HEALTH
 	bool "Application liveness watchdog"
 	default n
 	help
 	  SMP echo proves the kernel is alive, not that the application thread
 	  is. Enabling this extends the host's confirm gate from "kernel alive"
-	  to "application alive", via balena_mcu_health_feed().
+	  to "application alive", via runtt_health_feed().
 
-endif # BALENA_MCU
+endif # RUNTT
 
 # The system workqueue carries more than an application would expect once this
 # module is enabled, and Zephyr's 1024-byte default is not enough for it.
@@ -361,7 +361,7 @@ endif # BALENA_MCU
 # never fires, unrecoverable without physically replugging the board.
 #
 # Observed exactly that on an RP2040: an `os reset` alone, with no upload,
-# bricked a board running balena-mcu-idle until it was replugged. The template
+# bricked a board running runtt-idle until it was replugged. The template
 # application happened to set 2560 in its own prj.conf and so never hit it,
 # which is precisely why this belongs to the module rather than to any one app.
 #
@@ -369,4 +369,4 @@ endif # BALENA_MCU
 # default without preventing an application from choosing a larger one, whereas
 # a conf fragment would silently override a deliberately bigger value.
 configdefault SYSTEM_WORKQUEUE_STACK_SIZE
-	default 2560 if BALENA_MCU
+	default 2560 if RUNTT

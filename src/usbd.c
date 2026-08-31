@@ -11,7 +11,7 @@
  *
  * So a board declaring both a management and a log channel enumerates with only
  * one, and the log channel silently never appears. Observed on real hardware:
- * an RP2040 came up with balena-mcu-mgmt and nothing else.
+ * an RP2040 came up with runtt-mgmt and nothing else.
  *
  * Registering every class instance is the whole job, and
  * usbd_register_all_classes() does it. Interface string descriptors still come
@@ -23,10 +23,10 @@
 #include <zephyr/usb/usbd.h>
 
 #include <zephyr/logging/log.h>
-#ifdef CONFIG_BALENA_MCU_IDENTITY
-#include <balena_mcu/identity.h>
+#ifdef CONFIG_RUNTT_IDENTITY
+#include <runtt/identity.h>
 #endif
-LOG_MODULE_REGISTER(balena_mcu_usbd, CONFIG_BALENA_MCU_LOG_LEVEL);
+LOG_MODULE_REGISTER(runtt_usbd, CONFIG_RUNTT_LOG_LEVEL);
 
 /*
  * DFU is excluded deliberately. It is a second, unauthenticated path to write
@@ -39,16 +39,16 @@ static const char *const blocklist[] = {
 	NULL,
 };
 
-USBD_DEVICE_DEFINE(balena_mcu_usbd,
+USBD_DEVICE_DEFINE(runtt_usbd,
 		   DEVICE_DT_GET(DT_NODELABEL(zephyr_udc0)),
-		   CONFIG_BALENA_MCU_USB_VID, CONFIG_BALENA_MCU_USB_PID);
+		   CONFIG_RUNTT_USB_VID, CONFIG_RUNTT_USB_PID);
 
-USBD_DESC_LANG_DEFINE(balena_mcu_lang);
-USBD_DESC_MANUFACTURER_DEFINE(balena_mcu_mfr, CONFIG_BALENA_MCU_USB_MANUFACTURER);
-USBD_DESC_PRODUCT_DEFINE(balena_mcu_product, CONFIG_BALENA_MCU_USB_PRODUCT);
-IF_ENABLED(CONFIG_HWINFO, (USBD_DESC_SERIAL_NUMBER_DEFINE(balena_mcu_sn)));
+USBD_DESC_LANG_DEFINE(runtt_lang);
+USBD_DESC_MANUFACTURER_DEFINE(runtt_mfr, CONFIG_RUNTT_USB_MANUFACTURER);
+USBD_DESC_PRODUCT_DEFINE(runtt_product, CONFIG_RUNTT_USB_PRODUCT);
+IF_ENABLED(CONFIG_HWINFO, (USBD_DESC_SERIAL_NUMBER_DEFINE(runtt_sn)));
 
-#ifdef CONFIG_BALENA_MCU_IDENTITY
+#ifdef CONFIG_RUNTT_IDENTITY
 /* The provisioned serial, published as the USB serial string descriptor.
  *
  * THIS IS WHAT MAKES `usb:<serial>` PLACEMENT POSSIBLE WITHOUT PROBING. A host
@@ -64,8 +64,8 @@ IF_ENABLED(CONFIG_HWINFO, (USBD_DESC_SERIAL_NUMBER_DEFINE(balena_mcu_sn)));
  * declared by hand over a mutable buffer, with bLength filled in once the length
  * is known.
  */
-static uint8_t provisioned_sn_ascii[BALENA_MCU_IDENTITY_SERIAL_LEN + 1];
-static struct usbd_desc_node balena_mcu_provisioned_sn = {
+static uint8_t provisioned_sn_ascii[RUNTT_IDENTITY_SERIAL_LEN + 1];
+static struct usbd_desc_node runtt_provisioned_sn = {
 	.str = {
 		.utype = USBD_DUT_STRING_SERIAL_NUMBER,
 		.ascii7 = true,
@@ -75,38 +75,38 @@ static struct usbd_desc_node balena_mcu_provisioned_sn = {
 };
 #endif
 
-USBD_DESC_CONFIG_DEFINE(balena_mcu_fs_desc, "balena MCU FS configuration");
-USBD_DESC_CONFIG_DEFINE(balena_mcu_hs_desc, "balena MCU HS configuration");
+USBD_DESC_CONFIG_DEFINE(runtt_fs_desc, "balena MCU FS configuration");
+USBD_DESC_CONFIG_DEFINE(runtt_hs_desc, "balena MCU HS configuration");
 
 /* A macro rather than a `static const`: USBD_CONFIGURATION_DEFINE builds a
  * static initialiser, and a const variable is not a constant expression in C.
  * Bus-powered, which is what a USB-attached MCU board is.
  */
-#define BALENA_MCU_USB_ATTRS 0
-#define BALENA_MCU_USB_MAX_POWER 250
+#define RUNTT_USB_ATTRS 0
+#define RUNTT_USB_MAX_POWER 250
 
-USBD_CONFIGURATION_DEFINE(balena_mcu_fs_config, BALENA_MCU_USB_ATTRS,
-			  BALENA_MCU_USB_MAX_POWER, &balena_mcu_fs_desc);
-USBD_CONFIGURATION_DEFINE(balena_mcu_hs_config, BALENA_MCU_USB_ATTRS,
-			  BALENA_MCU_USB_MAX_POWER, &balena_mcu_hs_desc);
+USBD_CONFIGURATION_DEFINE(runtt_fs_config, RUNTT_USB_ATTRS,
+			  RUNTT_USB_MAX_POWER, &runtt_fs_desc);
+USBD_CONFIGURATION_DEFINE(runtt_hs_config, RUNTT_USB_ATTRS,
+			  RUNTT_USB_MAX_POWER, &runtt_hs_desc);
 
-static int balena_mcu_usbd_init(void)
+static int runtt_usbd_init(void)
 {
 	int err;
 
-	err = usbd_add_descriptor(&balena_mcu_usbd, &balena_mcu_lang);
+	err = usbd_add_descriptor(&runtt_usbd, &runtt_lang);
 	if (err) {
 		LOG_ERR("failed to add language descriptor (%d)", err);
 		return err;
 	}
 
-	err = usbd_add_descriptor(&balena_mcu_usbd, &balena_mcu_mfr);
+	err = usbd_add_descriptor(&runtt_usbd, &runtt_mfr);
 	if (err) {
 		LOG_ERR("failed to add manufacturer descriptor (%d)", err);
 		return err;
 	}
 
-	err = usbd_add_descriptor(&balena_mcu_usbd, &balena_mcu_product);
+	err = usbd_add_descriptor(&runtt_usbd, &runtt_product);
 	if (err) {
 		LOG_ERR("failed to add product descriptor (%d)", err);
 		return err;
@@ -122,8 +122,8 @@ static int balena_mcu_usbd_init(void)
 	 */
 	bool sn_added = false;
 
-#ifdef CONFIG_BALENA_MCU_IDENTITY
-	const char *provisioned = balena_mcu_identity_serial();
+#ifdef CONFIG_RUNTT_IDENTITY
+	const char *provisioned = runtt_identity_serial();
 
 	if (provisioned != NULL) {
 		size_t len = strlen(provisioned);
@@ -133,9 +133,9 @@ static int balena_mcu_usbd_init(void)
 		/* Two bytes of header plus two per character: the same arithmetic
 		 * USB_STRING_DESCRIPTOR_LENGTH does for a literal.
 		 */
-		balena_mcu_provisioned_sn.bLength = (uint8_t)((len + 1) * 2);
+		runtt_provisioned_sn.bLength = (uint8_t)((len + 1) * 2);
 
-		err = usbd_add_descriptor(&balena_mcu_usbd, &balena_mcu_provisioned_sn);
+		err = usbd_add_descriptor(&runtt_usbd, &runtt_provisioned_sn);
 		if (err) {
 			LOG_WRN("failed to add the provisioned serial descriptor (%d)", err);
 		} else {
@@ -147,48 +147,48 @@ static int balena_mcu_usbd_init(void)
 
 	if (!sn_added) {
 		IF_ENABLED(CONFIG_HWINFO, ({
-			err = usbd_add_descriptor(&balena_mcu_usbd, &balena_mcu_sn);
+			err = usbd_add_descriptor(&runtt_usbd, &runtt_sn);
 			if (err) {
 				LOG_WRN("failed to add serial number descriptor (%d)", err);
 			}
 		}))
 	}
 
-	if (usbd_caps_speed(&balena_mcu_usbd) == USBD_SPEED_HS) {
-		err = usbd_add_configuration(&balena_mcu_usbd, USBD_SPEED_HS,
-					     &balena_mcu_hs_config);
+	if (usbd_caps_speed(&runtt_usbd) == USBD_SPEED_HS) {
+		err = usbd_add_configuration(&runtt_usbd, USBD_SPEED_HS,
+					     &runtt_hs_config);
 		if (err) {
 			LOG_ERR("failed to add high-speed configuration (%d)", err);
 			return err;
 		}
 
 		/* Every class instance, which is the point of this file. */
-		err = usbd_register_all_classes(&balena_mcu_usbd, USBD_SPEED_HS, 1, blocklist);
+		err = usbd_register_all_classes(&runtt_usbd, USBD_SPEED_HS, 1, blocklist);
 		if (err) {
 			LOG_ERR("failed to register high-speed classes (%d)", err);
 			return err;
 		}
 	}
 
-	err = usbd_add_configuration(&balena_mcu_usbd, USBD_SPEED_FS, &balena_mcu_fs_config);
+	err = usbd_add_configuration(&runtt_usbd, USBD_SPEED_FS, &runtt_fs_config);
 	if (err) {
 		LOG_ERR("failed to add full-speed configuration (%d)", err);
 		return err;
 	}
 
-	err = usbd_register_all_classes(&balena_mcu_usbd, USBD_SPEED_FS, 1, blocklist);
+	err = usbd_register_all_classes(&runtt_usbd, USBD_SPEED_FS, 1, blocklist);
 	if (err) {
 		LOG_ERR("failed to register full-speed classes (%d)", err);
 		return err;
 	}
 
-	err = usbd_init(&balena_mcu_usbd);
+	err = usbd_init(&runtt_usbd);
 	if (err) {
 		LOG_ERR("failed to initialise USB device (%d)", err);
 		return err;
 	}
 
-	err = usbd_enable(&balena_mcu_usbd);
+	err = usbd_enable(&runtt_usbd);
 	if (err) {
 		LOG_ERR("failed to enable USB device (%d)", err);
 		return err;
@@ -199,4 +199,4 @@ static int balena_mcu_usbd_init(void)
 }
 
 /* After the CDC-ACM instances exist, before the application runs. */
-SYS_INIT(balena_mcu_usbd_init, APPLICATION, CONFIG_BALENA_MCU_USB_INIT_PRIORITY);
+SYS_INIT(runtt_usbd_init, APPLICATION, CONFIG_RUNTT_USB_INIT_PRIORITY);

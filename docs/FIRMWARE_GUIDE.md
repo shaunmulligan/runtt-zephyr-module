@@ -39,10 +39,10 @@ manifest:
           - tf-psa-crypto       # not optional either — see below
           - tinycrypt
           - <your board's HAL>
-    - name: balena-mcu
-      url: https://github.com/balena-io/mcu-runtime
+    - name: runtt
+      url: https://github.com/balena-io/runtt
       revision: main
-      path: modules/balena-mcu
+      path: modules/runtt
 ```
 
 > **Two allowlist traps, both of which fail confusingly.** Omit **`zcbor`** and
@@ -114,19 +114,19 @@ stops a Zephyr bump silently changing the on-device contract.
 
 ```bash
 west build -b <board> --sysbuild app/ -- \
-      -DZEPHYR_EXTRA_MODULES=<path to balena-mcu> \
-      -Dapp_SNIPPET=balena-mcu
+      -DZEPHYR_EXTRA_MODULES=<path to runtt> \
+      -Dapp_SNIPPET=runtt
 ```
 
 The snippet appends the contract's Kconfig and the board's devicetree overlay.
 Everything in `docs/WIRE_CONTRACT.md` follows from it.
 
 > **`-DZEPHYR_EXTRA_MODULES` is not optional.** West auto-discovers a
-> `module.yml` only at a project's root, and `balena-mcu` is nested inside its
+> `module.yml` only at a project's root, and `runtt` is nested inside its
 > manifest repo rather than being one. Without the flag the module and its
 > snippet are simply not there, and the failure is a confusing "unknown snippet"
 > rather than anything naming the module. Inside the builder image the path is
-> `/ws/balena-mcu`, also exported as `$BALENA_MCU_MODULE`.
+> `/ws/runtt`, also exported as `$RUNTT_MODULE`.
 
 > **Use `-Dapp_SNIPPET=`, not `-S`/`--snippet`, whenever you build under
 > sysbuild.** A top-level snippet applies to **every** image sysbuild produces,
@@ -135,29 +135,29 @@ Everything in `docs/WIRE_CONTRACT.md` follows from it.
 > 63.5 KB, that is also a size problem. `-Dapp_SNIPPET=` scopes it to the
 > application image, which is the only place it belongs.
 >
-> Plain `-S balena-mcu` is correct only for a **non-sysbuild** build — a
+> Plain `-S runtt` is correct only for a **non-sysbuild** build — a
 > bootloader-less bring-up image, as in `scripts/build-pico.sh bringup`.
 
 ### 5. The Dockerfile
 
-The build environment — Zephyr, MCUboot and the `balena-mcu` module — comes from
+The build environment — Zephyr, MCUboot and the `runtt` module — comes from
 a **builder image**, built once:
 
 ```bash
-docker build -f firmware/builder/Dockerfile -t balena-mcu-builder:v4.4.2 firmware/
+docker build -f firmware/builder/Dockerfile -t runtt-builder:v4.4.2 firmware/
 ```
 
 Your application directory then needs nothing but its own source and this:
 
 ```dockerfile
-ARG BUILDER=balena-mcu-builder:v4.4.2
+ARG BUILDER=runtt-builder:v4.4.2
 FROM ${BUILDER} AS builder
 ARG BOARD=rpi_pico/rp2040/mcuboot
 
 COPY . /ws/app
 RUN west build -b "${BOARD}" --sysbuild /ws/app -d /ws/build -- \
-      -DZEPHYR_EXTRA_MODULES=/ws/balena-mcu \
-      -Dapp_SNIPPET=balena-mcu
+      -DZEPHYR_EXTRA_MODULES=/ws/runtt \
+      -Dapp_SNIPPET=runtt
 
 FROM scratch
 COPY --from=builder /ws/build/app/zephyr/zephyr.signed.bin /app.signed.bin
@@ -196,8 +196,8 @@ single-layer blob is structurally the best case for update size.
 ## Running it
 
 ```bash
-docker run --runtime=mcu-runtime \
-  --annotation io.balena.mcu.target=usb:3-4 \
+docker run --runtime=runtt \
+  --annotation dev.runtt.target=usb:3-4 \
   my-firmware:latest
 ```
 
@@ -230,11 +230,11 @@ headline feature and it costs you nothing.
 ### The one optional C API
 
 ```c
-#include <balena_mcu/health.h>
+#include <runtt/health.h>
 
 while (1) {
 	do_work();
-	balena_mcu_health_feed();     /* CONFIG_BALENA_MCU_HEALTH=y */
+	runtt_health_feed();     /* CONFIG_RUNTT_HEALTH=y */
 }
 ```
 
@@ -251,23 +251,23 @@ weaker guarantee. If your application has a main loop, use it.
 
 | Symbol | Default | What it's for |
 |---|---|---|
-| `BALENA_MCU` | set by the snippet | the whole module |
-| `BALENA_MCU_CHANNELS` | `2` | `1` for single-serial targets (ESP32-C3 class) and probe-UART bring-up |
-| `BALENA_MCU_USB` | `y` if the DT declares CDC-ACM | registers **every** CDC-ACM instance |
-| `BALENA_MCU_USB_VID` / `_PID` | Zephyr's | ship your own; the contract doesn't key off them |
-| `BALENA_MCU_IMG_MGMT` | `y` if `slot1_partition` exists | the update half |
-| `BALENA_MCU_SMP_DESCRIBE` | `y` | the identity command |
-| `BALENA_MCU_CONTRACT_VERSION` | `1.2.0` | what `describe` reports |
-| `BALENA_MCU_HEALTH` | `n` | the liveness watchdog above |
-| `BALENA_MCU_IDLE` | `n` | **the provisioning placeholder only.** Never set this in customer firmware |
+| `RUNTT` | set by the snippet | the whole module |
+| `RUNTT_CHANNELS` | `2` | `1` for single-serial targets (ESP32-C3 class) and probe-UART bring-up |
+| `RUNTT_USB` | `y` if the DT declares CDC-ACM | registers **every** CDC-ACM instance |
+| `RUNTT_USB_VID` / `_PID` | Zephyr's | ship your own; the contract doesn't key off them |
+| `RUNTT_IMG_MGMT` | `y` if `slot1_partition` exists | the update half |
+| `RUNTT_SMP_DESCRIBE` | `y` | the identity command |
+| `RUNTT_CONTRACT_VERSION` | `1.2.0` | what `describe` reports |
+| `RUNTT_HEALTH` | `n` | the liveness watchdog above |
+| `RUNTT_IDLE` | `n` | **the provisioning placeholder only.** Never set this in customer firmware |
 
-### Why `BALENA_MCU_USB` exists at all
+### Why `RUNTT_USB` exists at all
 
 Zephyr's own `CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT` **only registers the
 first CDC-ACM instance** — its own source comment says so. A board declaring
 both a management and a log channel therefore enumerates with just one, and the
 log channel never appears. Observed on an RP2040 before this module existed.
-Set `CDC_ACM_SERIAL_INITIALIZE_AT_BOOT=n` and let `BALENA_MCU_USB` do it.
+Set `CDC_ACM_SERIAL_INITIALIZE_AT_BOOT=n` and let `RUNTT_USB` do it.
 
 ## The two channels
 
@@ -275,11 +275,11 @@ Set `CDC_ACM_SERIAL_INITIALIZE_AT_BOOT=n` and let `BALENA_MCU_USB` do it.
 &zephyr_udc0 {
 	cdc_acm_mgmt: cdc_acm_mgmt {
 		compatible = "zephyr,cdc-acm-uart";
-		label = "balena-mcu-mgmt";     /* → USB interface string descriptor */
+		label = "runtt-mgmt";     /* → USB interface string descriptor */
 	};
 	cdc_acm_log: cdc_acm_log {
 		compatible = "zephyr,cdc-acm-uart";
-		label = "balena-mcu-log";
+		label = "runtt-log";
 	};
 };
 
@@ -299,7 +299,7 @@ so the two channels of one composite device land on different `ID_PATH`s. The
 string descriptor is the part of the identity your firmware actually controls.
 
 The snippet provides this overlay for supported boards. For a new board, copy
-the pattern into `snippets/balena-mcu/boards/<board>.overlay`.
+the pattern into `snippets/runtt/boards/<board>.overlay`.
 
 Each CDC-ACM instance costs 3 endpoints (bulk in, bulk out, interrupt in).
 RP2040 has 16 bidirectional and nRF52840 has 7 IN + 7 OUT, so two is
@@ -327,7 +327,7 @@ If you *do* implement it by hand, `#include <app_version.h>` behind a
 
 ## Boards without a second slot
 
-`BALENA_MCU_IMG_MGMT` defaults to whether the devicetree has `slot1_partition`.
+`RUNTT_IMG_MGMT` defaults to whether the devicetree has `slot1_partition`.
 A plain `rpi_pico` (single code partition, no slots) gets transport and identity
 only — it boots standalone with no bootloader, which is exactly what you want
 while proving USB enumeration, interface descriptors and udev rules.
@@ -354,7 +354,7 @@ you.** Migration is then: bump the pin, rebuild, run the gate.
 ## Testing without hardware
 
 ```bash
-west build -b native_sim/native/64 --snippet balena-mcu app/
+west build -b native_sim/native/64 --snippet runtt app/
 ```
 
 No sysbuild and no MCUboot here — it cannot chain-load on this target (see
@@ -385,11 +385,11 @@ Two honest limits:
 - [ ] `sysbuild.conf` pins the swap mode
 - [ ] **A real signing key, not MCUboot's published one** — before you provision
 - [ ] Board target has `slot1_partition`
-- [ ] Build passes with `-Dapp_SNIPPET=balena-mcu` (**not** top-level `-S`)
+- [ ] Build passes with `-Dapp_SNIPPET=runtt` (**not** top-level `-S`)
 - [ ] Dockerfile's `ENTRYPOINT` names the signed image in the scratch rootfs
 - [ ] `describe` reports the version you expect
 - [ ] Logs appear in `docker logs`
-- [ ] Considered `balena_mcu_health_feed()`
+- [ ] Considered `runtt_health_feed()`
 
 ---
 

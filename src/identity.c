@@ -2,7 +2,7 @@
  * Copyright (c) 2026 The runtt authors
  * SPDX-License-Identifier: MIT OR Apache-2.0
  *
- * Reading the per-board identity record. See include/balena_mcu/identity.h for
+ * Reading the per-board identity record. See include/runtt/identity.h for
  * why it exists and why it lives where it does.
  */
 
@@ -12,9 +12,9 @@
 #include <zephyr/storage/flash_map.h>
 #include <zephyr/sys/crc.h>
 
-#include <balena_mcu/identity.h>
+#include <runtt/identity.h>
 
-LOG_MODULE_REGISTER(balena_mcu_identity, CONFIG_BALENA_MCU_LOG_LEVEL);
+LOG_MODULE_REGISTER(runtt_identity, CONFIG_RUNTT_LOG_LEVEL);
 
 /* Not every board declares a storage partition. Without one there is nowhere to
  * put a record, so the module compiles down to the built-in defaults rather than
@@ -30,29 +30,29 @@ LOG_MODULE_REGISTER(balena_mcu_identity, CONFIG_BALENA_MCU_LOG_LEVEL);
 #endif
 
 /* Everything but the trailing CRC. */
-#define CRC_COVERED_LEN (sizeof(struct balena_mcu_identity) - sizeof(uint32_t))
+#define CRC_COVERED_LEN (sizeof(struct runtt_identity) - sizeof(uint32_t))
 
-static struct balena_mcu_identity record;
+static struct runtt_identity record;
 static bool provisioned;
 /* A record that is PRESENT but unusable. Kept apart from "absent" because the
- * two warrant opposite responses -- see balena_mcu_identity_is_corrupt().
+ * two warrant opposite responses -- see runtt_identity_is_corrupt().
  */
 static bool corrupt;
 /* One byte longer than the field so an unterminated serial still prints. */
-static char serial_str[BALENA_MCU_IDENTITY_SERIAL_LEN + 1];
+static char serial_str[RUNTT_IDENTITY_SERIAL_LEN + 1];
 
-static bool record_is_valid(const struct balena_mcu_identity *r)
+static bool record_is_valid(const struct runtt_identity *r)
 {
-	if (r->magic != BALENA_MCU_IDENTITY_MAGIC) {
+	if (r->magic != RUNTT_IDENTITY_MAGIC) {
 		/* Erased flash reads as 0xff, so an unprovisioned board lands
 		 * here. Not a warning: it is the factory state.
 		 */
 		return false;
 	}
 
-	if (r->version != BALENA_MCU_IDENTITY_VERSION) {
+	if (r->version != RUNTT_IDENTITY_VERSION) {
 		LOG_ERR("identity record version %u is not %u", r->version,
-			BALENA_MCU_IDENTITY_VERSION);
+			RUNTT_IDENTITY_VERSION);
 		corrupt = true;
 		return false;
 	}
@@ -108,28 +108,28 @@ static int identity_init(void)
 /* Before anything that consumes identity. The CAN transport reads the node id
  * when it binds, so this has to have run by then.
  */
-SYS_INIT(identity_init, APPLICATION, CONFIG_BALENA_MCU_IDENTITY_INIT_PRIORITY);
+SYS_INIT(identity_init, APPLICATION, CONFIG_RUNTT_IDENTITY_INIT_PRIORITY);
 #else
 BUILD_ASSERT(true, "no storage_partition on this board; identity uses defaults");
 #endif /* HAVE_STORAGE */
 
-uint16_t balena_mcu_identity_can_node_id(void)
+uint16_t runtt_identity_can_node_id(void)
 {
-	if (provisioned && record.can_node_id != BALENA_MCU_IDENTITY_NO_NODE_ID) {
+	if (provisioned && record.can_node_id != RUNTT_IDENTITY_NO_NODE_ID) {
 		return record.can_node_id;
 	}
 
-#ifdef CONFIG_BALENA_MCU_CAN_NODE_ID
-	return (uint16_t)CONFIG_BALENA_MCU_CAN_NODE_ID;
+#ifdef CONFIG_RUNTT_CAN_NODE_ID
+	return (uint16_t)CONFIG_RUNTT_CAN_NODE_ID;
 #else
 	/* Identity can be enabled without the CAN transport, in which case there
 	 * is no Kconfig default to fall back to.
 	 */
-	return BALENA_MCU_IDENTITY_NO_NODE_ID;
+	return RUNTT_IDENTITY_NO_NODE_ID;
 #endif
 }
 
-const char *balena_mcu_identity_serial(void)
+const char *runtt_identity_serial(void)
 {
 	if (!provisioned || serial_str[0] == '\0') {
 		return NULL;
@@ -138,12 +138,12 @@ const char *balena_mcu_identity_serial(void)
 	return serial_str;
 }
 
-bool balena_mcu_identity_is_provisioned(void)
+bool runtt_identity_is_provisioned(void)
 {
 	return provisioned;
 }
 
-bool balena_mcu_identity_is_corrupt(void)
+bool runtt_identity_is_corrupt(void)
 {
 	return corrupt;
 }

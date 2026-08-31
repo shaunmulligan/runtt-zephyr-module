@@ -9,25 +9,25 @@
  * would be a silent, baffling failure. So both call this.
  */
 
-#ifndef BALENA_MCU_CAN_ID_H_
-#define BALENA_MCU_CAN_ID_H_
+#ifndef RUNTT_CAN_ID_H_
+#define RUNTT_CAN_ID_H_
 
 #include <zephyr/kernel.h>
 
-#ifdef CONFIG_BALENA_MCU_IDENTITY
-#include <balena_mcu/identity.h>
+#ifdef CONFIG_RUNTT_IDENTITY
+#include <runtt/identity.h>
 #endif
 
 /** How far above the node id the device's console frames sit. */
-#define BALENA_MCU_CAN_LOG_ID_OFFSET 2U
+#define RUNTT_CAN_LOG_ID_OFFSET 2U
 
-static inline uint32_t balena_mcu_can_node_id(void)
+static inline uint32_t runtt_can_node_id(void)
 {
-#ifdef CONFIG_BALENA_MCU_IDENTITY
-	return balena_mcu_identity_can_node_id();
+#ifdef CONFIG_RUNTT_IDENTITY
+	return runtt_identity_can_node_id();
 #else
-	return (uint32_t)CONFIG_BALENA_MCU_CAN_NODE_ID;
+	return (uint32_t)CONFIG_RUNTT_CAN_NODE_ID;
 #endif
 }
 
-#endif /* BALENA_MCU_CAN_ID_H_ */
+#endif /* RUNTT_CAN_ID_H_ */

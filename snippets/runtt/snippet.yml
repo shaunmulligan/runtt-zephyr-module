@@ -1,11 +1,11 @@
 # The honesty test for this snippet: a competent Zephyr developer with existing
 # firmware gets onto the platform by adding the module to west.yml, appending
-# `-Dapp_SNIPPET=balena-mcu` to their build, and wrapping it in the two-stage
+# `-Dapp_SNIPPET=runtt` to their build, and wrapping it in the two-stage
 # Dockerfile (a top-level `-S` would apply the snippet to MCUboot too).
 # Under an hour, no source changes.
-name: balena-mcu
+name: runtt
 append:
-  EXTRA_CONF_FILE: balena-mcu.conf
+  EXTRA_CONF_FILE: runtt.conf
 boards:
   # native_sim exposes its UARTs as host ptys, so the two contract channels are
   # ptys there and become the dual CDC-ACM composite on hardware. Same overlay

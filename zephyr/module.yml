@@ -1,7 +1,7 @@
-name: balena-mcu
+name: runtt
 build:
   cmake: zephyr
   kconfig: zephyr/Kconfig
   settings:
-    # Lets west find snippets/balena-mcu/ for -Dapp_SNIPPET=/-S.
+    # Lets west find snippets/runtt/ for -Dapp_SNIPPET=/-S.
     snippet_root: .
