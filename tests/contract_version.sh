@@ -38,7 +38,10 @@ if [[ -f "$MODULE/CONTRACT_VERSION" ]]; then
   PINNED=$(tr -d '[:space:]' < "$MODULE/CONTRACT_VERSION")
   SOURCE="CONTRACT_VERSION"
 elif [[ -f "$MODULE/../../docs/WIRE_CONTRACT.md" ]]; then
-  PINNED=$(sed -n 's/^\*\*Version \(.*\)\*\*$/\1/p' "$MODULE/../../docs/WIRE_CONTRACT.md" | head -1)
+  # No `| head -1`: head closes the pipe and, under pipefail, sed's SIGPIPE
+  # would fail this assignment. Take the first line in the shell instead.
+  PINNED=$(sed -n 's/^\*\*Version \(.*\)\*\*$/\1/p' "$MODULE/../../docs/WIRE_CONTRACT.md")
+  PINNED=${PINNED%%$'\n'*}
   SOURCE="docs/WIRE_CONTRACT.md"
 else
   fail "found neither CONTRACT_VERSION nor docs/WIRE_CONTRACT.md to check against"
