@@ -2,7 +2,7 @@
 
 **The device half of the runtt wire contract**, as a Zephyr module.
 
-[runtt](https://github.com/<org>/runtt) is an OCI runtime that deploys firmware to
+[runtt](https://github.com/shaunmulligan/runtt) is an OCI runtime that deploys firmware to
 a microcontroller instead of running a container. This repository is everything
 that has to be true *on the MCU* for that to work: the runtime can find the board,
 talk to it over MCUmgr SMP, update it, and read its logs.
@@ -40,13 +40,13 @@ if you need to tune, but the defaults *are* the contract.
 
 There is no `west.yml` here and no application — it is a Zephyr *module*, not a
 manifest repository. To build anything you need a Zephyr workspace and an app;
-[`runtt-boards`](https://github.com/<org>/runtt-boards) supplies both.
+[`runtt-boards`](https://github.com/shaunmulligan/runtt-boards) supplies both.
 
 ## The contract
 
 `CONTRACT_VERSION` states which version of the wire contract this module
 implements. The contract itself is documented in
-[`runtt`/docs/WIRE_CONTRACT.md](https://github.com/<org>/runtt/blob/main/docs/WIRE_CONTRACT.md),
+[`runtt`/docs/WIRE_CONTRACT.md](https://github.com/shaunmulligan/runtt/blob/main/docs/WIRE_CONTRACT.md),
 which is the authority — a host refuses a device whose **major** disagrees.
 
 ```bash
@@ -62,14 +62,14 @@ unasserted across the two repositories.
 
 | Repo | What it holds | Start here if |
 |---|---|---|
-| [`runtt`](https://github.com/<org>/runtt) | the OCI runtime — the **host** side | you want to know what runtt is, or to work on the runtime |
-| [`runtt-zephyr-module`](https://github.com/<org>/runtt-zephyr-module) | the Zephyr module — the **device** side | you have firmware and want it manageable |
-| [`runtt-boards`](https://github.com/<org>/runtt-boards) | provisioning, board bring-up, the west manifest | you have a board that has never run runtt |
-| [`runtt-examples`](https://github.com/<org>/runtt-examples) | two worked applications, and the walkthrough | you want to watch it work end to end |
+| [`runtt`](https://github.com/shaunmulligan/runtt) | the OCI runtime — the **host** side | you want to know what runtt is, or to work on the runtime |
+| [`runtt-zephyr-module`](https://github.com/shaunmulligan/runtt-zephyr-module) | the Zephyr module — the **device** side | you have firmware and want it manageable |
+| [`runtt-boards`](https://github.com/shaunmulligan/runtt-boards) | provisioning, board bring-up, the west manifest | you have a board that has never run runtt |
+| [`runtt-examples`](https://github.com/shaunmulligan/runtt-examples) | two worked applications, and the walkthrough | you want to watch it work end to end |
 
-**New here?** Read [`runtt`](https://github.com/<org>/runtt)’s README for what this
+**New here?** Read [`runtt`](https://github.com/shaunmulligan/runtt)’s README for what this
 is and why, then follow the walkthrough in
-[`runtt-examples`](https://github.com/<org>/runtt-examples).
+[`runtt-examples`](https://github.com/shaunmulligan/runtt-examples).
 
 ## Licence
 

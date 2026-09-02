@@ -47,7 +47,7 @@ manifest:
           - tinycrypt
           - <your board's HAL>
     - name: runtt-zephyr-module
-      url: https://github.com/<org>/runtt-zephyr-module
+      url: https://github.com/shaunmulligan/runtt-zephyr-module
       revision: main            # pin a tag once you ship
       path: modules/runtt       # where it lands; keep it short
 ```
