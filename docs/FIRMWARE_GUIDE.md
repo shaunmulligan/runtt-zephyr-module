@@ -25,6 +25,13 @@ document is the practical side: how to arrange your tree so you get it for free.
 
 ### 1. The module, in `west.yml`
 
+Three names appear here and they are independent, which is worth knowing before
+they look inconsistent: `name:` is the west project (what `west list` prints),
+`url:` is the repository, and `path:` is where it lands in your workspace. None of
+them is the *module* name — that is `runtt`, declared in the module's own
+`zephyr/module.yml`, and it is what Kconfig, CMake and `-Dapp_SNIPPET=runtt` use.
+So the long repository name costs you nothing at the point of use.
+
 ```yaml
 manifest:
   projects:
@@ -39,10 +46,10 @@ manifest:
           - tf-psa-crypto       # not optional either — see below
           - tinycrypt
           - <your board's HAL>
-    - name: runtt
-      url: https://github.com/<org>/runtt   # wherever this lives
-      revision: main
-      path: modules/runtt
+    - name: runtt-zephyr-module
+      url: https://github.com/<org>/runtt-zephyr-module
+      revision: main            # pin a tag once you ship
+      path: modules/runtt       # where it lands; keep it short
 ```
 
 > **Two allowlist traps, both of which fail confusingly.** Omit **`zcbor`** and
