@@ -120,20 +120,25 @@ stops a Zephyr bump silently changing the on-device contract.
 ### 4. The build flag
 
 ```bash
-west build -b <board> --sysbuild app/ -- \
-      -DZEPHYR_EXTRA_MODULES=<path to runtt> \
-      -Dapp_SNIPPET=runtt
+west build -b <board> --sysbuild app/ -- -Dapp_SNIPPET=runtt
 ```
 
 The snippet appends the contract's Kconfig and the board's devicetree overlay.
 Everything in `docs/WIRE_CONTRACT.md` follows from it.
 
-> **`-DZEPHYR_EXTRA_MODULES` is not optional.** West auto-discovers a
-> `module.yml` only at a project's root, and `runtt` is nested inside its
-> manifest repo rather than being one. Without the flag the module and its
-> snippet are simply not there, and the failure is a confusing "unknown snippet"
-> rather than anything naming the module. Inside the builder image the path is
-> `/ws/runtt`, also exported as `$RUNTT_MODULE`.
+> **One flag, not two.** This used to also need
+> `-DZEPHYR_EXTRA_MODULES=<path to runtt>`, and the reason has gone away: the
+> module was then a subdirectory of the manifest repository, and west
+> auto-discovers a `module.yml` only at a project's root. It is now its own
+> repository, declared in `runtt-boards`' `west.yml` as a project at
+> `modules/runtt`, so west registers it as a Zephyr module and `west build`
+> finds its Kconfig, CMakeLists and snippet unaided. That is what declaring it
+> in a manifest is *for*.
+>
+> You still need the flag in one case: vendoring this module somewhere outside a
+> west workspace, where nothing has registered it. If the module is missing, the
+> error names the snippet rather than the module — "unknown snippet: runtt" —
+> which is a confusing way to be told your manifest is wrong.
 
 > **Use `-Dapp_SNIPPET=`, not `-S`/`--snippet`, whenever you build under
 > sysbuild.** A top-level snippet applies to **every** image sysbuild produces,
@@ -151,8 +156,13 @@ The build environment — Zephyr, MCUboot and the `runtt` module — comes from
 a **builder image**, built once:
 
 ```bash
-docker build -f firmware/builder/Dockerfile -t runtt-builder:v4.4.2 firmware/
+git clone https://github.com/shaunmulligan/runtt-boards && cd runtt-boards
+podman build -f builder/Dockerfile -t runtt-builder:v4.4.2 .
 ```
+
+The context is the repository root rather than `builder/`, because the
+Dockerfile copies `west.yml` from it — that manifest pins Zephyr, MCUboot and
+this module.
 
 Your application directory then needs nothing but its own source and this:
 
@@ -163,7 +173,6 @@ ARG BOARD=rpi_pico/rp2040/mcuboot
 
 COPY . /ws/app
 RUN west build -b "${BOARD}" --sysbuild /ws/app -d /ws/build -- \
-      -DZEPHYR_EXTRA_MODULES=/ws/runtt \
       -Dapp_SNIPPET=runtt
 
 FROM scratch
@@ -172,10 +181,19 @@ ENTRYPOINT ["app.signed.bin"]
 ```
 
 ```bash
-cd my-app && docker build -t my-app:v1 .
+cd my-app && podman build -t my-app:v1 .
 ```
 
-`firmware/examples/app1` and `app2` are complete worked examples.
+[`runtt-examples`](https://github.com/shaunmulligan/runtt-examples) carries two
+complete worked examples, `app1/` and `app2/`.
+
+> **`-Dapp_SNIPPET`, and the image name must match.** Under sysbuild the image
+> name comes from the directory the sources are copied to — `/ws/app` here, so
+> `app_SNIPPET`. Sysbuild **silently ignores** a snippet flag naming an image
+> that does not exist and exits zero, so a mismatch produces firmware with no
+> SMP server and no USB contract in it, from a build that looks entirely
+> successful. If a deploy fails with the board never being found, check this
+> first.
 
 > **Why a builder image rather than fetching Zephyr in your own Dockerfile.**
 > The west manifest and the module are siblings of the application, so a
@@ -203,10 +221,16 @@ single-layer blob is structurally the best case for update size.
 ## Running it
 
 ```bash
-docker run --runtime=runtt \
-  --annotation dev.runtt.target=usb:3-4 \
+podman run --rm --network none \
+  --runtime=/path/to/runtt \
+  --annotation dev.runtt.target=usb:my-board-01 \
   my-firmware:latest
 ```
+
+Podman takes `--runtime` as a path, so there is nothing to register. Docker
+needs the runtime installed and registered with the daemon first, after which
+`--runtime=runtt` resolves by name. Do not build with one engine and run with
+the other — they keep separate image stores.
 
 Your firmware's log output is that container's stdout.
 
