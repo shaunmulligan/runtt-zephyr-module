@@ -20,6 +20,21 @@ boards:
       EXTRA_CONF_FILE: boards/native_sim.conf
   # On hardware the two channels become a dual CDC-ACM composite. A regex so the
   # /rp2040 and /rp2040/mcuboot variants are both covered.
+  #
+  # It also covers the Pico 2 and Pico 2 W (RP2350), and that is deliberate rather
+  # than accidental: Zephyr matches this key against "$BOARD/$BOARD_QUALIFIERS"
+  # anchored at both ends (scripts/snippets.py), so `rpi_pico.*` catches
+  # `rpi_pico2/rp2350a/m33/w` too. Nothing here needs to change for RP2350 -- it
+  # uses the same `raspberrypi,pico-usbd` driver behind the same `zephyr_udc0`
+  # label and also has 16 bidirectional endpoints, so the conf and overlay below
+  # are correct as-is. Verified on a Pico 2 W: both interface string descriptors
+  # in the linked ELF, a deploy that swaps and confirms, and a deliberately
+  # unmanageable image that reverts.
+  #
+  # If some future RP2350 board does need different settings, do NOT add a second
+  # `/rpi_pico2.*/` key beside this one: each entry emits its own `if()` rather
+  # than an `elif`, so both would match and both files would be appended. Narrow
+  # this key instead.
   /rpi_pico.*/:
     append:
       EXTRA_DTC_OVERLAY_FILE: boards/rpi_pico.overlay
