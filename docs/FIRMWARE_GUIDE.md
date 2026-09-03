@@ -126,14 +126,10 @@ west build -b <board> --sysbuild app/ -- -Dapp_SNIPPET=runtt
 The snippet appends the contract's Kconfig and the board's devicetree overlay.
 Everything in [`WIRE_CONTRACT.md`](https://github.com/shaunmulligan/runtt/blob/main/docs/WIRE_CONTRACT.md) follows from it.
 
-> **One flag, not two.** This used to also need
-> `-DZEPHYR_EXTRA_MODULES=<path to runtt>`, and the reason has gone away: the
-> module was then a subdirectory of the manifest repository, and west
-> auto-discovers a `module.yml` only at a project's root. It is now its own
-> repository, declared in `runtt-boards`' `west.yml` as a project at
-> `modules/runtt`, so west registers it as a Zephyr module and `west build`
-> finds its Kconfig, CMakeLists and snippet unaided. That is what declaring it
-> in a manifest is *for*.
+> **One flag, and only one.** You do not need
+> `-DZEPHYR_EXTRA_MODULES`. Declaring this repository in your `west.yml` is what
+> registers it as a Zephyr module, so `west build` finds its Kconfig, CMakeLists
+> and snippet unaided.
 >
 > You still need the flag in one case: vendoring this module somewhere outside a
 > west workspace, where nothing has registered it. If the module is missing, the
@@ -332,8 +328,9 @@ What this means for you:
 Zephyr's own `CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT` **only registers the
 first CDC-ACM instance** — its own source comment says so. A board declaring
 both a management and a log channel therefore enumerates with just one, and the
-log channel never appears. Observed on an RP2040 before this module existed.
-Set `CDC_ACM_SERIAL_INITIALIZE_AT_BOOT=n` and let `RUNTT_USB` do it.
+log channel never appears — so a two-channel board needs something else to
+register both. Set `CDC_ACM_SERIAL_INITIALIZE_AT_BOOT=n` and let `RUNTT_USB` do
+it.
 
 ## The two channels
 
