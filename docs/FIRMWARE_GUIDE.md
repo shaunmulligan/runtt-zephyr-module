@@ -278,6 +278,39 @@ host's confirm gate from "kernel alive" to "application alive".
 Optional. Firmware that never calls it is fully manageable, it just gets the
 weaker guarantee. If your application has a main loop, use it.
 
+### Your board may reboot itself once after a deploy
+
+`CONFIG_RUNTT_CONFIRM_DEADLINE` is **on by default**, so this is behaviour you
+inherit rather than opt into, and it is worth understanding before it surprises
+you.
+
+MCUboot reverts an unconfirmed image at the next boot — and nothing schedules
+that boot. An image that runs but cannot be reached is therefore never
+confirmed and never reverted: measured on a Pico 2 W, one ran for 14 minutes and
+came back only when an operator reset the board. So if the running image has not
+been confirmed within `RUNTT_CONFIRM_DEADLINE_SEC` (60 by default), this module
+reboots the board, and MCUboot reverts on that boot.
+
+What this means for you:
+
+* **A healthy deploy never sees it.** The host confirms in about 2 seconds; the
+  deadline then expires as a no-op. Nothing happens on a board running settled,
+  confirmed firmware either — the timer is armed only while the running image is
+  unconfirmed.
+* **It only arms when a reboot would actually revert something**
+  (`mcuboot_swap_type() == BOOT_SWAP_TYPE_REVERT`). An image you flashed
+  straight into the primary slot without `--confirm` boots unconfirmed too, but
+  has nothing to revert to, so the deadline declines to arm rather than
+  bootlooping your board.
+* **Lower it only with a measurement in hand.** The risk runs opposite to
+  intuition: too *short* reverts *good* firmware, because confirm latency is
+  bounded by the host — a loaded machine or a slow container start — not by the
+  device.
+* **It does not cover a crash on boot.** Zephyr's default fatal handler halts
+  rather than reboots, so firmware that faults before this module initialises
+  does not revert. That needs a hardware watchdog, which this module does not
+  set up for you.
+
 ## The Kconfig surface
 
 | Symbol | Default | What it's for |
@@ -288,7 +321,9 @@ weaker guarantee. If your application has a main loop, use it.
 | `RUNTT_USB_VID` / `_PID` | Zephyr's | ship your own; the contract doesn't key off them |
 | `RUNTT_IMG_MGMT` | `y` if `slot1_partition` exists | the update half |
 | `RUNTT_SMP_DESCRIBE` | `y` | the identity command |
-| `RUNTT_CONTRACT_VERSION` | `1.2.0` | what `describe` reports |
+| `RUNTT_CONTRACT_VERSION` | `2.0.0` | what `describe` reports |
+| `RUNTT_CONFIRM_DEADLINE` | `y` (`n` on `ARCH_POSIX`) | reboot an unconfirmed image so MCUboot reverts it — see above |
+| `RUNTT_CONFIRM_DEADLINE_SEC` | `60` | how long the host gets to confirm. Raising is safe; lowering is not |
 | `RUNTT_HEALTH` | `n` | the liveness watchdog above |
 | `RUNTT_IDLE` | `n` | **the provisioning placeholder only.** Never set this in customer firmware |
 
@@ -421,6 +456,8 @@ Two honest limits:
 - [ ] `describe` reports the version you expect
 - [ ] Logs appear in `docker logs`
 - [ ] Considered `runtt_health_feed()`
+- [ ] Know that `RUNTT_CONFIRM_DEADLINE` is on, and that 60 s is comfortably
+      longer than your host's confirm latency
 
 ---
 
