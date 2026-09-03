@@ -2,6 +2,7 @@
 if(CONFIG_RUNTT)
   zephyr_library_named(runtt)
   zephyr_include_directories(${ZEPHYR_CURRENT_MODULE_DIR}/include)
+  zephyr_library_sources_ifdef(CONFIG_RUNTT_CONFIRM_DEADLINE ../src/confirm.c)
   zephyr_library_sources_ifdef(CONFIG_RUNTT_HEALTH       ../src/health.c)
   zephyr_library_sources_ifdef(CONFIG_RUNTT_IDENTITY     ../src/identity.c)
   zephyr_library_sources_ifdef(CONFIG_RUNTT_USB          ../src/usbd.c)

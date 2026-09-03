@@ -338,6 +338,80 @@ config RUNTT_IDENTITY_INIT_PRIORITY
 	  RUNTT_CAN_INIT_PRIORITY, since the CAN transport reads the node id
 	  when it binds its filters.
 
+config RUNTT_CONFIRM_DEADLINE
+	bool "Reboot an unconfirmed image so MCUboot can revert it"
+	# OFF on simulated targets, and not merely as a precaution:
+	# MCUBOOT_IMG_MANAGER is set on native_sim too (RUNTT_SIM_SLOT_SHIM makes
+	# img_mgmt buildable there), so without this line the deadline ships in
+	# the native_sim fixture that runtt's e2e gates consume. There is no
+	# MCUboot in that fixture -- the gate asserts as much, naming swap and
+	# confirm "unreachable without a bootloader" -- so a reboot could not
+	# revert anything, and sys_reboot() on POSIX re-execs the process. The
+	# only possible effect is restarting the simulator underneath a gate that
+	# is still driving it.
+	default n if ARCH_POSIX
+	default y
+	depends on RUNTT_IMG_MGMT
+	depends on MCUBOOT_IMG_MANAGER
+	select REBOOT
+	help
+	  Closes the gap between "MCUboot will revert an unconfirmed image" and
+	  "something actually reboots the board".
+
+	  MCUboot reverts AT BOOT, and its design document puts scheduling that
+	  boot out of scope. Nothing else schedules it: an image that boots and
+	  runs but cannot answer SMP is never confirmed, and runs indefinitely.
+	  Observed on a Pico 2 W, which happily ran an unmanageable image for 14
+	  minutes and reverted only once an operator reset it. Zephyr's own OTA
+	  clients have the same gap -- hawkbit terminates with
+	  HAWKBIT_UNCONFIRMED_IMAGE, updatehub returns -EIO, neither reboots.
+
+	  With this enabled, an image that boots unconfirmed gives the host
+	  RUNTT_CONFIRM_DEADLINE_SEC to confirm it and otherwise reboots itself,
+	  at which point MCUboot reverts.
+
+	  ON BY DEFAULT, deliberately: a safety property that is off by default is
+	  not a safety property, and the runtime's documentation promises this
+	  recovery. It costs a settled board nothing -- the deadline is armed only
+	  while the running image is unconfirmed, which is only the window
+	  between a fresh deploy and its confirmation.
+
+	  It does NOT cover firmware that faults before this module initialises,
+	  or firmware that does not include this module at all. That needs a
+	  hardware watchdog, which is separate per-SoC work: MCUboot's
+	  BOOT_WATCHDOG_FEED only feeds an existing watchdog while doing the swap
+	  and does not arm one for the application.
+
+config RUNTT_CONFIRM_DEADLINE_SEC
+	int "Seconds to wait for the host to confirm"
+	default 60
+	range 5 3600
+	depends on RUNTT_CONFIRM_DEADLINE
+	help
+	  THE DANGER HERE POINTS THE OTHER WAY TO INTUITION: too SHORT reverts
+	  GOOD firmware, turning the safety property into a liability. Measured
+	  confirm latency is about 2 seconds, but it is bounded by the host, not
+	  by the device -- a loaded machine or a slow container start can take
+	  far longer, and nothing on the device can observe that.
+
+	  So this wants to be generously larger than any realistic confirm, and
+	  60 s is roughly thirty times the measured figure. Lower it only with a
+	  measurement of your own host's confirm latency in hand.
+
+	  Any change here must be tested in BOTH directions on hardware: that a
+	  broken image self-reverts, AND that a good image survives the deadline
+	  untouched. The second is the one that matters and the one that is easy
+	  not to write.
+
+config RUNTT_CONFIRM_DEADLINE_INIT_PRIORITY
+	int "Init priority for arming the confirm deadline"
+	default 99
+	depends on RUNTT_CONFIRM_DEADLINE
+	help
+	  Late in APPLICATION: reading whether the running image is confirmed
+	  goes through the flash driver and the MCUboot image manager, so both
+	  must be up first.
+
 config RUNTT_HEALTH
 	bool "Application liveness watchdog"
 	default n
