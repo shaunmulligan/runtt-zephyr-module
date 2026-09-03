@@ -8,7 +8,7 @@ one build flag, and wrapping it in a two-stage Dockerfile.** Under an hour, no
 source changes. If you find yourself editing
 application code to satisfy the platform, something has gone wrong — tell us.
 
-Read `docs/WIRE_CONTRACT.md` for what the runtime requires on the wire. This
+Read [`WIRE_CONTRACT.md`](https://github.com/shaunmulligan/runtt/blob/main/docs/WIRE_CONTRACT.md) for what the runtime requires on the wire. This
 document is the practical side: how to arrange your tree so you get it for free.
 
 ## What you need before starting
@@ -18,7 +18,7 @@ document is the practical side: how to arrange your tree so you get it for free.
   `slot1`. Most upstream boards already have one; check
   `boards/…/<board>.dts` for `slot1_partition`.
 * The board **provisioned** — MCUboot flashed once over SWD or UF2. That is a
-  one-time physical act, described in `docs/PROVISIONING.md`. Nothing here works
+  one-time physical act, described in [`PROVISIONING.md`](https://github.com/shaunmulligan/runtt-boards/blob/main/docs/PROVISIONING.md). Nothing here works
   until it's done.
 
 ## The five things you add
@@ -124,7 +124,7 @@ west build -b <board> --sysbuild app/ -- -Dapp_SNIPPET=runtt
 ```
 
 The snippet appends the contract's Kconfig and the board's devicetree overlay.
-Everything in `docs/WIRE_CONTRACT.md` follows from it.
+Everything in [`WIRE_CONTRACT.md`](https://github.com/shaunmulligan/runtt/blob/main/docs/WIRE_CONTRACT.md) follows from it.
 
 > **One flag, not two.** This used to also need
 > `-DZEPHYR_EXTRA_MODULES=<path to runtt>`, and the reason has gone away: the
