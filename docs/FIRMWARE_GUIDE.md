@@ -302,10 +302,12 @@ What this means for you:
   intuition: too *short* reverts *good* firmware, because confirm latency is
   bounded by the host — a loaded machine or a slow container start — not by the
   device.
-* **It does not cover a crash on boot.** Zephyr's default fatal handler halts
-  rather than reboots, so firmware that faults before this module initialises
-  does not revert. That needs a hardware watchdog, which this module does not
-  set up for you.
+* **A crash is covered by the watchdog, not the deadline.** Zephyr's default
+  fatal handler halts rather than reboots, so a hard fault never reaches the
+  deadline — `CONFIG_RUNTT_WATCHDOG` (also on by default on boards with a
+  `watchdog0` alias) is what reboots a halted board, and MCUboot reverts on
+  that boot. What neither covers: firmware that faults *before this module
+  initialises*, or firmware that does not carry the module at all.
 
 ## The Kconfig surface
 
@@ -320,6 +322,9 @@ What this means for you:
 | `RUNTT_CONTRACT_VERSION` | `2.0.0` | what `describe` reports |
 | `RUNTT_CONFIRM_DEADLINE` | `y` (`n` on `ARCH_POSIX`) | reboot an unconfirmed image so MCUboot reverts it — see above |
 | `RUNTT_CONFIRM_DEADLINE_SEC` | `60` | how long the host gets to confirm. Raising is safe; lowering is not |
+| `RUNTT_WATCHDOG` | `y` if the board has a `watchdog0` alias | hardware watchdog fed from the system workqueue, so a halted board still reverts |
+| `RUNTT_WATCHDOG_TIMEOUT_MS` | `8000` | just under RP2040 errata E1's ceiling; raising it past ~8.3 s gives up the Pico 1 |
+| `RUNTT_WATCHDOG_DISARM_ON_RESET` | `y` | stops the watchdog on a host-requested reset so MCUboot swaps with a clean slate (nRF52840 cannot stop it, and does not need to — MCUboot feeds it there) |
 | `RUNTT_HEALTH` | `n` | the liveness watchdog above |
 | `RUNTT_IDLE` | `n` | **the provisioning placeholder only.** Never set this in customer firmware |
 
