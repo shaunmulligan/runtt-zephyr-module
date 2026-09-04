@@ -8,7 +8,7 @@ one build flag, and wrapping it in a two-stage Dockerfile.** Under an hour, no
 source changes. If you find yourself editing
 application code to satisfy the platform, something has gone wrong — tell us.
 
-Read `docs/WIRE_CONTRACT.md` for what the runtime requires on the wire. This
+Read [`WIRE_CONTRACT.md`](https://github.com/shaunmulligan/runtt/blob/main/docs/WIRE_CONTRACT.md) for what the runtime requires on the wire. This
 document is the practical side: how to arrange your tree so you get it for free.
 
 ## What you need before starting
@@ -18,7 +18,7 @@ document is the practical side: how to arrange your tree so you get it for free.
   `slot1`. Most upstream boards already have one; check
   `boards/…/<board>.dts` for `slot1_partition`.
 * The board **provisioned** — MCUboot flashed once over SWD or UF2. That is a
-  one-time physical act, described in `docs/PROVISIONING.md`. Nothing here works
+  one-time physical act, described in [`PROVISIONING.md`](https://github.com/shaunmulligan/runtt-boards/blob/main/docs/PROVISIONING.md). Nothing here works
   until it's done.
 
 ## The five things you add
@@ -124,16 +124,12 @@ west build -b <board> --sysbuild app/ -- -Dapp_SNIPPET=runtt
 ```
 
 The snippet appends the contract's Kconfig and the board's devicetree overlay.
-Everything in `docs/WIRE_CONTRACT.md` follows from it.
+Everything in [`WIRE_CONTRACT.md`](https://github.com/shaunmulligan/runtt/blob/main/docs/WIRE_CONTRACT.md) follows from it.
 
-> **One flag, not two.** This used to also need
-> `-DZEPHYR_EXTRA_MODULES=<path to runtt>`, and the reason has gone away: the
-> module was then a subdirectory of the manifest repository, and west
-> auto-discovers a `module.yml` only at a project's root. It is now its own
-> repository, declared in `runtt-boards`' `west.yml` as a project at
-> `modules/runtt`, so west registers it as a Zephyr module and `west build`
-> finds its Kconfig, CMakeLists and snippet unaided. That is what declaring it
-> in a manifest is *for*.
+> **One flag, and only one.** You do not need
+> `-DZEPHYR_EXTRA_MODULES`. Declaring this repository in your `west.yml` is what
+> registers it as a Zephyr module, so `west build` finds its Kconfig, CMakeLists
+> and snippet unaided.
 >
 > You still need the flag in one case: vendoring this module somewhere outside a
 > west workspace, where nothing has registered it. If the module is missing, the
@@ -278,6 +274,39 @@ host's confirm gate from "kernel alive" to "application alive".
 Optional. Firmware that never calls it is fully manageable, it just gets the
 weaker guarantee. If your application has a main loop, use it.
 
+### Your board may reboot itself once after a deploy
+
+`CONFIG_RUNTT_CONFIRM_DEADLINE` is **on by default**, so this is behaviour you
+inherit rather than opt into, and it is worth understanding before it surprises
+you.
+
+MCUboot reverts an unconfirmed image at the next boot — and nothing schedules
+that boot. An image that runs but cannot be reached is therefore never
+confirmed and never reverted: measured on a Pico 2 W, one ran for 14 minutes and
+came back only when an operator reset the board. So if the running image has not
+been confirmed within `RUNTT_CONFIRM_DEADLINE_SEC` (60 by default), this module
+reboots the board, and MCUboot reverts on that boot.
+
+What this means for you:
+
+* **A healthy deploy never sees it.** The host confirms in about 2 seconds; the
+  deadline then expires as a no-op. Nothing happens on a board running settled,
+  confirmed firmware either — the timer is armed only while the running image is
+  unconfirmed.
+* **It only arms when a reboot would actually revert something**
+  (`mcuboot_swap_type() == BOOT_SWAP_TYPE_REVERT`). An image you flashed
+  straight into the primary slot without `--confirm` boots unconfirmed too, but
+  has nothing to revert to, so the deadline declines to arm rather than
+  bootlooping your board.
+* **Lower it only with a measurement in hand.** The risk runs opposite to
+  intuition: too *short* reverts *good* firmware, because confirm latency is
+  bounded by the host — a loaded machine or a slow container start — not by the
+  device.
+* **It does not cover a crash on boot.** Zephyr's default fatal handler halts
+  rather than reboots, so firmware that faults before this module initialises
+  does not revert. That needs a hardware watchdog, which this module does not
+  set up for you.
+
 ## The Kconfig surface
 
 | Symbol | Default | What it's for |
@@ -288,7 +317,9 @@ weaker guarantee. If your application has a main loop, use it.
 | `RUNTT_USB_VID` / `_PID` | Zephyr's | ship your own; the contract doesn't key off them |
 | `RUNTT_IMG_MGMT` | `y` if `slot1_partition` exists | the update half |
 | `RUNTT_SMP_DESCRIBE` | `y` | the identity command |
-| `RUNTT_CONTRACT_VERSION` | `1.2.0` | what `describe` reports |
+| `RUNTT_CONTRACT_VERSION` | `2.0.0` | what `describe` reports |
+| `RUNTT_CONFIRM_DEADLINE` | `y` (`n` on `ARCH_POSIX`) | reboot an unconfirmed image so MCUboot reverts it — see above |
+| `RUNTT_CONFIRM_DEADLINE_SEC` | `60` | how long the host gets to confirm. Raising is safe; lowering is not |
 | `RUNTT_HEALTH` | `n` | the liveness watchdog above |
 | `RUNTT_IDLE` | `n` | **the provisioning placeholder only.** Never set this in customer firmware |
 
@@ -297,8 +328,9 @@ weaker guarantee. If your application has a main loop, use it.
 Zephyr's own `CONFIG_CDC_ACM_SERIAL_INITIALIZE_AT_BOOT` **only registers the
 first CDC-ACM instance** — its own source comment says so. A board declaring
 both a management and a log channel therefore enumerates with just one, and the
-log channel never appears. Observed on an RP2040 before this module existed.
-Set `CDC_ACM_SERIAL_INITIALIZE_AT_BOOT=n` and let `RUNTT_USB` do it.
+log channel never appears — so a two-channel board needs something else to
+register both. Set `CDC_ACM_SERIAL_INITIALIZE_AT_BOOT=n` and let `RUNTT_USB` do
+it.
 
 ## The two channels
 
@@ -421,6 +453,8 @@ Two honest limits:
 - [ ] `describe` reports the version you expect
 - [ ] Logs appear in `docker logs`
 - [ ] Considered `runtt_health_feed()`
+- [ ] Know that `RUNTT_CONFIRM_DEADLINE` is on, and that 60 s is comfortably
+      longer than your host's confirm latency
 
 ---
 

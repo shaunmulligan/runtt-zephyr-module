@@ -338,6 +338,179 @@ config RUNTT_IDENTITY_INIT_PRIORITY
 	  RUNTT_CAN_INIT_PRIORITY, since the CAN transport reads the node id
 	  when it binds its filters.
 
+config RUNTT_CONFIRM_DEADLINE
+	bool "Reboot an unconfirmed image so MCUboot can revert it"
+	# OFF on simulated targets, and not merely as a precaution:
+	# MCUBOOT_IMG_MANAGER is set on native_sim too (RUNTT_SIM_SLOT_SHIM makes
+	# img_mgmt buildable there), so without this line the deadline ships in
+	# the native_sim fixture that runtt's e2e gates consume. There is no
+	# MCUboot in that fixture -- the gate asserts as much, naming swap and
+	# confirm "unreachable without a bootloader" -- so a reboot could not
+	# revert anything, and sys_reboot() on POSIX re-execs the process. The
+	# only possible effect is restarting the simulator underneath a gate that
+	# is still driving it.
+	default n if ARCH_POSIX
+	default y
+	depends on RUNTT_IMG_MGMT
+	depends on MCUBOOT_IMG_MANAGER
+	select REBOOT
+	help
+	  Closes the gap between "MCUboot will revert an unconfirmed image" and
+	  "something actually reboots the board".
+
+	  MCUboot reverts AT BOOT, and its design document puts scheduling that
+	  boot out of scope. Nothing else schedules it: an image that boots and
+	  runs but cannot answer SMP is never confirmed, and runs indefinitely.
+	  Observed on a Pico 2 W, which happily ran an unmanageable image for 14
+	  minutes and reverted only once an operator reset it. Zephyr's own OTA
+	  clients have the same gap -- hawkbit terminates with
+	  HAWKBIT_UNCONFIRMED_IMAGE, updatehub returns -EIO, neither reboots.
+
+	  With this enabled, an image that boots unconfirmed gives the host
+	  RUNTT_CONFIRM_DEADLINE_SEC to confirm it and otherwise reboots itself,
+	  at which point MCUboot reverts.
+
+	  ON BY DEFAULT, deliberately: a safety property that is off by default is
+	  not a safety property, and the runtime's documentation promises this
+	  recovery. It costs a settled board nothing -- the deadline is armed only
+	  while the running image is unconfirmed, which is only the window
+	  between a fresh deploy and its confirmation.
+
+	  It does NOT cover firmware that faults before this module initialises,
+	  or firmware that does not include this module at all. That needs a
+	  hardware watchdog, which is separate per-SoC work: MCUboot's
+	  BOOT_WATCHDOG_FEED only feeds an existing watchdog while doing the swap
+	  and does not arm one for the application.
+
+config RUNTT_CONFIRM_DEADLINE_SEC
+	int "Seconds to wait for the host to confirm"
+	default 60
+	range 5 3600
+	depends on RUNTT_CONFIRM_DEADLINE
+	help
+	  THE DANGER HERE POINTS THE OTHER WAY TO INTUITION: too SHORT reverts
+	  GOOD firmware, turning the safety property into a liability. Measured
+	  confirm latency is about 2 seconds, but it is bounded by the host, not
+	  by the device -- a loaded machine or a slow container start can take
+	  far longer, and nothing on the device can observe that.
+
+	  So this wants to be generously larger than any realistic confirm, and
+	  60 s is roughly thirty times the measured figure. Lower it only with a
+	  measurement of your own host's confirm latency in hand.
+
+	  Any change here must be tested in BOTH directions on hardware: that a
+	  broken image self-reverts, AND that a good image survives the deadline
+	  untouched. The second is the one that matters and the one that is easy
+	  not to write.
+
+config RUNTT_CONFIRM_DEADLINE_INIT_PRIORITY
+	int "Init priority for arming the confirm deadline"
+	default 99
+	depends on RUNTT_CONFIRM_DEADLINE
+	help
+	  Late in APPLICATION: reading whether the running image is confirmed
+	  goes through the flash driver and the MCUboot image manager, so both
+	  must be up first.
+
+config RUNTT_WATCHDOG
+	bool "Hardware watchdog, so a halted CPU still reverts"
+	default y if $(dt_alias_enabled,watchdog0)
+	depends on RUNTT_CONFIRM_DEADLINE
+	select WATCHDOG
+	help
+	  The confirm deadline reboots firmware that runs but cannot be reached.
+	  It cannot help firmware whose kernel has STOPPED, and that is the more
+	  likely failure: Zephyr's default fatal handler halts
+	  (arch_system_halt, kernel/fatal.c) rather than rebooting, so an image
+	  that hard faults sits with the CPU stopped and no deadline ever fires.
+
+	  This arms the SoC's watchdog and feeds it from the system workqueue, so
+	  a workqueue that stops making progress reboots the board -- and MCUboot
+	  reverts an unconfirmed image on that boot.
+
+	  The feed proves the system workqueue is scheduling, which is precisely
+	  what the contract needs: both CDC-ACM channels and MCUmgr's os-reset
+	  handler run there, so a stalled workqueue means SMP is already dead and
+	  the board is already unmanageable. The watchdog fires when nothing else
+	  could have saved it.
+
+	  It does NOT cover firmware without this module, or a fault before this
+	  module initialises.
+
+	  ONE THING TO KNOW BEFORE ENABLING THIS. A watchdog armed here keeps
+	  counting through a soft reset -- measured on both RP2350 and nRF52840 --
+	  so it also applies to MCUboot's swap and to the next image's startup.
+	  MCUboot must feed it: that is BOOT_WATCHDOG_FEED, on by upstream default
+	  for Nordic and enabled for RP2 by runtt-boards' sysbuild fragment.
+	  Without it an inherited watchdog can interrupt a swap and leave a test
+	  image confirmed with no revert target.
+
+	  A consequence that cannot be fully removed: an image which does NOT arm
+	  a watchdog, deployed straight after one that does, inherits a live
+	  countdown and is reset once a few seconds after boot. Bounded to a
+	  single reset -- a watchdog reset resets the watchdog block itself, so it
+	  fires once and stops -- and avoided entirely where wdt_disable() works,
+	  which is everywhere except nRF52840.
+
+	  `depends on RUNTT_CONFIRM_DEADLINE` because a reboot only helps if
+	  something reverts on that boot; without the deadline's premise -- an
+	  image that MCUboot will revert -- this is just a reboot.
+
+config RUNTT_WATCHDOG_DISARM_ON_RESET
+	bool "Stop the watchdog when the host asks for a reset"
+	default y
+	depends on RUNTT_WATCHDOG && MCUMGR_GRP_OS
+	select MCUMGR_MGMT_NOTIFICATION_HOOKS
+	select MCUMGR_GRP_OS_RESET_HOOK
+	help
+	  The watchdog keeps counting through a soft reset, so without this
+	  MCUboot inherits whatever is left of the period and has to complete a
+	  swap inside it. Measured on RP2350: an inherited 8 s watchdog
+	  interrupted a swap and left a test image confirmed with no revert
+	  target.
+
+	  MCUboot cannot fix this on RP2. Its BOOT_WATCHDOG_FEED path calls
+	  wdt_feed(), and Zephyr's RP2 driver refuses to feed a watchdog its own
+	  instance did not arm. Arming one in MCUboot instead would bootloop any
+	  application that does not feed it. So the application stops it on the
+	  way out.
+
+	  On nRF52840 this cannot work -- no WDT TASKS_STOP, so wdt_disable()
+	  returns -EPERM -- and is not needed, because MCUboot's nrfx feed path
+	  is enabled there by upstream default and does protect the swap.
+	  Verified on hardware in both directions.
+
+	  Leave it on. It never blocks a reset; failing to disarm is logged and
+	  the reset proceeds.
+
+config RUNTT_WATCHDOG_TIMEOUT_MS
+	int "Watchdog timeout (ms)"
+	default 8000
+	range 500 120000
+	depends on RUNTT_WATCHDOG
+	help
+	  Fed every quarter of this, so 8000 means a feed every 2 s and a reboot
+	  after 8 s without one.
+
+	  8000 rather than something rounder because RP2040 is the tightest
+	  target we build for: errata RP2040-E1 halves its maximum watchdog
+	  period, leaving about 8.3 s where RP2350 allows about 16.8 and
+	  nRF52840 far more. A default above the RP2040 ceiling would fail
+	  wdt_install_timeout() on one board and work on the others, which is
+	  the worst shape for a default.
+
+	  Raising it past ~8.3 s therefore means giving up the Pico 1.
+
+config RUNTT_WATCHDOG_INIT_PRIORITY
+	int "Init priority for arming the watchdog"
+	default 91
+	depends on RUNTT_WATCHDOG
+	help
+	  Early in APPLICATION, and before the transports: the sooner it is
+	  armed, the smaller the window in which a fault goes unnoticed. After
+	  RUNTT_IDENTITY_INIT_PRIORITY (90) only because there is no reason to
+	  precede it.
+
 config RUNTT_HEALTH
 	bool "Application liveness watchdog"
 	default n
