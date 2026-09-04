@@ -412,6 +412,105 @@ config RUNTT_CONFIRM_DEADLINE_INIT_PRIORITY
 	  goes through the flash driver and the MCUboot image manager, so both
 	  must be up first.
 
+config RUNTT_WATCHDOG
+	bool "Hardware watchdog, so a halted CPU still reverts"
+	default y if $(dt_alias_enabled,watchdog0)
+	depends on RUNTT_CONFIRM_DEADLINE
+	select WATCHDOG
+	help
+	  The confirm deadline reboots firmware that runs but cannot be reached.
+	  It cannot help firmware whose kernel has STOPPED, and that is the more
+	  likely failure: Zephyr's default fatal handler halts
+	  (arch_system_halt, kernel/fatal.c) rather than rebooting, so an image
+	  that hard faults sits with the CPU stopped and no deadline ever fires.
+
+	  This arms the SoC's watchdog and feeds it from the system workqueue, so
+	  a workqueue that stops making progress reboots the board -- and MCUboot
+	  reverts an unconfirmed image on that boot.
+
+	  The feed proves the system workqueue is scheduling, which is precisely
+	  what the contract needs: both CDC-ACM channels and MCUmgr's os-reset
+	  handler run there, so a stalled workqueue means SMP is already dead and
+	  the board is already unmanageable. The watchdog fires when nothing else
+	  could have saved it.
+
+	  It does NOT cover firmware without this module, or a fault before this
+	  module initialises.
+
+	  ONE THING TO KNOW BEFORE ENABLING THIS. A watchdog armed here keeps
+	  counting through a soft reset -- measured on both RP2350 and nRF52840 --
+	  so it also applies to MCUboot's swap and to the next image's startup.
+	  MCUboot must feed it: that is BOOT_WATCHDOG_FEED, on by upstream default
+	  for Nordic and enabled for RP2 by runtt-boards' sysbuild fragment.
+	  Without it an inherited watchdog can interrupt a swap and leave a test
+	  image confirmed with no revert target.
+
+	  A consequence that cannot be fully removed: an image which does NOT arm
+	  a watchdog, deployed straight after one that does, inherits a live
+	  countdown and is reset once a few seconds after boot. Bounded to a
+	  single reset -- a watchdog reset resets the watchdog block itself, so it
+	  fires once and stops -- and avoided entirely where wdt_disable() works,
+	  which is everywhere except nRF52840.
+
+	  `depends on RUNTT_CONFIRM_DEADLINE` because a reboot only helps if
+	  something reverts on that boot; without the deadline's premise -- an
+	  image that MCUboot will revert -- this is just a reboot.
+
+config RUNTT_WATCHDOG_DISARM_ON_RESET
+	bool "Stop the watchdog when the host asks for a reset"
+	default y
+	depends on RUNTT_WATCHDOG && MCUMGR_GRP_OS
+	select MCUMGR_MGMT_NOTIFICATION_HOOKS
+	select MCUMGR_GRP_OS_RESET_HOOK
+	help
+	  The watchdog keeps counting through a soft reset, so without this
+	  MCUboot inherits whatever is left of the period and has to complete a
+	  swap inside it. Measured on RP2350: an inherited 8 s watchdog
+	  interrupted a swap and left a test image confirmed with no revert
+	  target.
+
+	  MCUboot cannot fix this on RP2. Its BOOT_WATCHDOG_FEED path calls
+	  wdt_feed(), and Zephyr's RP2 driver refuses to feed a watchdog its own
+	  instance did not arm. Arming one in MCUboot instead would bootloop any
+	  application that does not feed it. So the application stops it on the
+	  way out.
+
+	  On nRF52840 this cannot work -- no WDT TASKS_STOP, so wdt_disable()
+	  returns -EPERM -- and is not needed, because MCUboot's nrfx feed path
+	  is enabled there by upstream default and does protect the swap.
+	  Verified on hardware in both directions.
+
+	  Leave it on. It never blocks a reset; failing to disarm is logged and
+	  the reset proceeds.
+
+config RUNTT_WATCHDOG_TIMEOUT_MS
+	int "Watchdog timeout (ms)"
+	default 8000
+	range 500 120000
+	depends on RUNTT_WATCHDOG
+	help
+	  Fed every quarter of this, so 8000 means a feed every 2 s and a reboot
+	  after 8 s without one.
+
+	  8000 rather than something rounder because RP2040 is the tightest
+	  target we build for: errata RP2040-E1 halves its maximum watchdog
+	  period, leaving about 8.3 s where RP2350 allows about 16.8 and
+	  nRF52840 far more. A default above the RP2040 ceiling would fail
+	  wdt_install_timeout() on one board and work on the others, which is
+	  the worst shape for a default.
+
+	  Raising it past ~8.3 s therefore means giving up the Pico 1.
+
+config RUNTT_WATCHDOG_INIT_PRIORITY
+	int "Init priority for arming the watchdog"
+	default 91
+	depends on RUNTT_WATCHDOG
+	help
+	  Early in APPLICATION, and before the transports: the sooner it is
+	  armed, the smaller the window in which a fault goes unnoticed. After
+	  RUNTT_IDENTITY_INIT_PRIORITY (90) only because there is no reason to
+	  precede it.
+
 config RUNTT_HEALTH
 	bool "Application liveness watchdog"
 	default n

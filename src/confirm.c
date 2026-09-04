@@ -33,6 +33,9 @@
 
 #include <zephyr/dfu/mcuboot.h>
 #include <zephyr/init.h>
+#if defined(CONFIG_RUNTT_WATCHDOG)
+#include <zephyr/drivers/watchdog.h>
+#endif
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_ctrl.h>
@@ -66,6 +69,38 @@ static void deadline_expired(struct k_work *work)
 	 * from this event is the reason it happened.
 	 */
 	LOG_PANIC();
+
+#if defined(CONFIG_RUNTT_WATCHDOG)
+	/*
+	 * Hand MCUboot a clean slate, where the SoC allows it.
+	 *
+	 * A watchdog armed here keeps counting THROUGH this reset -- measured on
+	 * both RP2350 and nRF52840 -- so without this it would impose its
+	 * remaining 6-8 s on MCUboot's swap and on the next image's startup,
+	 * neither of which is feeding it. On RP2350 that interrupted a swap
+	 * mid-flight and left a test image confirmed with no revert target.
+	 *
+	 * nRF52840 returns -EPERM: that silicon has no WDT TASKS_STOP, so a
+	 * running watchdog cannot be stopped by software at all. There it is
+	 * MCUboot's BOOT_WATCHDOG_FEED that protects the swap, which is enabled
+	 * by upstream default on Nordic. Not an error, so it is logged as a
+	 * fact rather than a failure.
+	 */
+	{
+		const struct device *wdt = DEVICE_DT_GET(DT_ALIAS(watchdog0));
+
+		if (device_is_ready(wdt)) {
+			int err = wdt_disable(wdt);
+
+			if (err == 0) {
+				LOG_DBG("watchdog stopped before reboot");
+			} else {
+				LOG_INF("cannot stop the watchdog (%d); "
+					"relying on MCUboot to feed it", err);
+			}
+		}
+	}
+#endif
 
 	sys_reboot(SYS_REBOOT_COLD);
 }

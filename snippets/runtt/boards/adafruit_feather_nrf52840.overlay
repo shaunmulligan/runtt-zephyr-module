@@ -68,3 +68,12 @@
 		zephyr,shell-uart = &cdc_acm_log;
 	};
 };
+
+/* The SoC's watchdog, for CONFIG_RUNTT_WATCHDOG (Layer 2: a halted CPU still
+ * reverts). Enabling the node does not arm anything -- the Kconfig option and
+ * src/watchdog.c do that -- so this is safe for firmware that leaves the
+ * watchdog off.
+ */
+&wdt0 {
+	status = "okay";
+};
