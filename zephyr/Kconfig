@@ -523,6 +523,29 @@ config RUNTT_HEALTH
 
 endif # RUNTT
 
+# The ISO-TP receive pool must hold one whole SMP packet, and Zephyr's default
+# cannot: 4 buffers of 56 bytes is 224, against packets bounded by
+# MCUMGR_TRANSPORT_NETBUF_SIZE (1024 in the snippet). smp_can.c receives with
+# bs = 0 -- deliberately, see the comment there -- which means the entire
+# incoming message is buffered in this pool before delivery.
+#
+# What the wrong size looks like is worth recording, because nothing names the
+# cause: the device answers echo and describe (both fit in 224 bytes) and then
+# replies to the FIRST upload chunk with an ISO-TP flow-control OVERFLOW frame.
+# The Linux peer surfaces that as EMSGSIZE -- "Message too long" -- on the next
+# READ, so the host-side error points at the reply when the problem is the
+# request. Found on the first physical-bus deploy (MCP25625), after the vcan
+# gate had been green for days: the sizing lived in runtt-boards'
+# native-sim bring-up conf, where only native_sim could inherit it.
+#
+# configdefault, so a board or app that genuinely needs different numbers can
+# still set them.
+configdefault ISOTP_RX_BUF_COUNT
+	default 8 if RUNTT_SMP_CAN
+
+configdefault ISOTP_RX_BUF_SIZE
+	default 256 if RUNTT_SMP_CAN
+
 # The system workqueue carries more than an application would expect once this
 # module is enabled, and Zephyr's 1024-byte default is not enough for it.
 #
