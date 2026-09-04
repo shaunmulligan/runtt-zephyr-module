@@ -95,10 +95,20 @@ the bootloader on Nordic. Verified in a fresh Feather build:
 `BOOT_WATCHDOG_FEED=y`, `BOOT_WATCHDOG_FEED_NRFX_WDT=y`, `NRFX_WDT=y`.
 
 So the nRF52840's inability to disarm turns out **not** to matter, and the Pico
-is the exposed one: same inheritance, no feeding. On RP2350 an inherited 8 s
-watchdog interrupted MCUboot mid-swap and produced a confirmed primary image
-with no revert target -- a test image made permanent, which is the opposite of
-what the deadline exists to guarantee.
+is the exposed one: same inheritance, no feeding. On RP2350 an inherited
+watchdog produced two observed failures: a spurious **revert** of an image the
+host never got to confirm (the countdown expired across the swap-and-reconnect
+window), and a new image killed **5.5 s after boot**, mid-heartbeat, through no
+fault of its own.
+
+An earlier version of this note claimed a third: "a test image confirmed with no
+revert target". That reading was wrong on both halves, and the correction is
+worth keeping. The confirmed bootlooping image had been confirmed **by the
+host**, legitimately -- it answered SMP for 30 s before its deliberate panic, and
+runtt confirms an image that comes back and answers. And "no revert target" is
+simply what `image list` shows after **every** successful confirm in
+swap-using-offset mode -- verified by checking the slots after a known-clean
+deploy. The watchdog did real damage; that particular state was not it.
 
 Measured on the Feather, with the feeding in place: an 8 s watchdog counted
 through a swap of an **82 KB** image and never fired --
@@ -155,9 +165,17 @@ does, inherits a live countdown and is reset once, 6-8 s after boot, through no
 fault of its own. Bounded to a single reset by the DOG-reset behaviour above,
 but it is a spurious reset of good firmware.
 
-Mitigated where the SoC allows it: `src/confirm.c` disables the watchdog before
-its own `sys_reboot()`. RP2350 supports `wdt_disable()`; nRF52840 returns
-`-EPERM`, so there it is MCUboot's feeding or nothing.
+Mitigated where the SoC allows it, twice over: `src/confirm.c` disables the
+watchdog before its own `sys_reboot()`, and `RUNTT_WATCHDOG_DISARM_ON_RESET`
+stops it on MCUmgr's os-reset hook -- the deploy path. nRF52840 returns `-EPERM`
+from both, so there it is MCUboot's feeding or nothing, and the feeding works.
+
+**Verified on a Pico 2 W, 2026-09-04.** A watchdog-free image deployed over a
+watchdog-armed one boots with `ctrl ENABLE=0` and the inherited countdown frozen
+at 5.94 s -- the disarm caught it mid-flight -- then ran indefinitely. The same
+sequence without the hook was reset 5.5 s after boot with `reason=TIMER`. The
+hook's own log line does not survive the reset teardown; the registers are the
+evidence.
 
 ### How the earlier wrong conclusion happened
 

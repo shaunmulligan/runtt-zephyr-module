@@ -77,8 +77,8 @@ static void deadline_expired(struct k_work *work)
 	 * A watchdog armed here keeps counting THROUGH this reset -- measured on
 	 * both RP2350 and nRF52840 -- so without this it would impose its
 	 * remaining 6-8 s on MCUboot's swap and on the next image's startup,
-	 * neither of which is feeding it. On RP2350 that interrupted a swap
-	 * mid-flight and left a test image confirmed with no revert target.
+	 * neither of which is feeding it. On RP2350 that caused a spurious
+	 * revert of one deploy and reset another image 5.5 s after boot.
 	 *
 	 * nRF52840 returns -EPERM: that silicon has no WDT TASKS_STOP, so a
 	 * running watchdog cannot be stopped by software at all. There it is

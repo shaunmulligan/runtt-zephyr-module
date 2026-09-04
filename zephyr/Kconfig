@@ -440,10 +440,12 @@ config RUNTT_WATCHDOG
 	  ONE THING TO KNOW BEFORE ENABLING THIS. A watchdog armed here keeps
 	  counting through a soft reset -- measured on both RP2350 and nRF52840 --
 	  so it also applies to MCUboot's swap and to the next image's startup.
-	  MCUboot must feed it: that is BOOT_WATCHDOG_FEED, on by upstream default
-	  for Nordic and enabled for RP2 by runtt-boards' sysbuild fragment.
-	  Without it an inherited watchdog can interrupt a swap and leave a test
-	  image confirmed with no revert target.
+	  On nRF52840 MCUboot feeds it (BOOT_WATCHDOG_FEED, on by upstream
+	  default and verified through a real swap). On RP2 MCUboot CANNOT feed a
+	  watchdog it did not arm -- the Zephyr driver refuses -- so
+	  RUNTT_WATCHDOG_DISARM_ON_RESET below stops it before the reset instead.
+	  Unmitigated, an inherited watchdog caused a spurious revert of one
+	  deploy and reset the next image 5.5 s after boot.
 
 	  A consequence that cannot be fully removed: an image which does NOT arm
 	  a watchdog, deployed straight after one that does, inherits a live

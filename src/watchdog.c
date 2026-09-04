@@ -90,8 +90,8 @@ static void feed(struct k_work *work)
  * test and then sends `os reset`. The watchdog armed here keeps counting
  * through that reset -- measured on RP2350 and nRF52840 -- so MCUboot inherits
  * whatever is left of the period and has to swap an entire image inside it. On
- * RP2350 that interrupted a swap and left a test image confirmed with no revert
- * target.
+ * RP2350 that caused a spurious revert of one deploy, and reset the next image
+ * 5.5 s after boot through no fault of its own.
  *
  * MCUboot cannot solve it on RP2. Its BOOT_WATCHDOG_FEED path calls
  * wdt_feed(), and Zephyr's RP2 driver refuses to feed a watchdog its own
