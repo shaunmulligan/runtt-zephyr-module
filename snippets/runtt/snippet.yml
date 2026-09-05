@@ -49,6 +49,15 @@ boards:
     append:
       EXTRA_DTC_OVERLAY_FILE: boards/rpi_pico.overlay
       EXTRA_CONF_FILE: boards/adafruit_feather_canbus_rp2040.conf
+  # ESP32-S3: the same dual-CDC composite on the dwc2 USB-OTG controller --
+  # the first Espressif board with cdc-acm nodes. Enabling OTG takes the S3's
+  # single USB PHY away from the ROM's USB-Serial/JTAG while the app runs; the
+  # overlay says why that trade is made. Covers /procpu and any /mcuboot-style
+  # qualifiers.
+  /esp32s3_devkitc.*/:
+    append:
+      EXTRA_DTC_OVERLAY_FILE: boards/esp32s3_devkitc.overlay
+      EXTRA_CONF_FILE: boards/esp32s3_devkitc.conf
   # Same composite on nRF52840. The regex covers the /nrf52840 and /nrf52840/uf2
   # targets, but note only the plain one is usable: the uf2 variant's partition
   # layout (nordic/nrf52840_partition_uf2_sdv6.dtsi) keeps Adafruit's bootloader

@@ -1,0 +1,46 @@
+/*
+ * Dual CDC-ACM composite on ESP32-S3's USB-OTG (dwc2) -- the first Espressif
+ * board in Zephyr to declare cdc-acm nodes, so nothing here is copied from an
+ * in-tree example. The channel shape and both load-bearing properties mirror
+ * boards/rpi_pico.overlay, where their reasons are documented at length:
+ * hw-flow-control on the management channel because SMP cannot tolerate drops,
+ * and deliberately NOT on the log channel because a console that blocks before
+ * USB enumerates bricks boot.
+ *
+ * ONE PHY, TWO OWNERS: the S3 muxes its single internal USB PHY between the
+ * ROM's USB-Serial/JTAG and this OTG controller. Enabling this node takes the
+ * connector away from the ROM console while the application runs (the ROM
+ * reclaims it in download mode, so esptool flashing is unaffected). That is
+ * the deliberate trade: identity-addressed `usb:` placement needs descriptors
+ * the firmware owns, which the ROM device cannot provide.
+ */
+
+zephyr_udc0: &usb_otg {
+	status = "okay";
+
+	cdc_acm_mgmt: cdc_acm_mgmt {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "runtt-mgmt";
+		/* See rpi_pico.overlay: SMP cannot tolerate silent drops. */
+		hw-flow-control;
+	};
+
+	cdc_acm_log: cdc_acm_log {
+		compatible = "zephyr,cdc-acm-uart";
+		label = "runtt-log";
+		/* No hw-flow-control, deliberately: see rpi_pico.overlay. */
+	};
+};
+
+/ {
+	chosen {
+		/* Channel 1: SMP management. */
+		zephyr,uart-mcumgr = &cdc_acm_mgmt;
+
+		/* Channel 2: application log output, which the runtime pipes to
+		 * container stdio.
+		 */
+		zephyr,console = &cdc_acm_log;
+		zephyr,shell-uart = &cdc_acm_log;
+	};
+};
